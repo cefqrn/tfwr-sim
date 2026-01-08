@@ -30,4 +30,7 @@ fn main() {
         "{:?}",
         parser::identifier.try_parse("ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω123 ")
     );
+    println!("{:?}", parser::expression.try_parse("None"));
+    println!("{:?}", parser::expression.try_parse("Noneα"));
+    println!("{:?}", parser::expression.try_parse("None "));
 }

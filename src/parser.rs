@@ -75,6 +75,22 @@ pub trait Parser<'a, T> {
             Err(_) => other.try_parse(s),
         }
     }
+
+    fn lookahead<U>(&self, other: &impl Parser<'a, U>) -> impl Parser<'a, T> {
+        |s| {
+            let (x, s) = self.try_parse(s)?;
+            let _ = other.try_parse(s)?;
+
+            Ok((x, s))
+        }
+    }
+
+    fn map<U>(&self, f: &impl Fn(T) -> U) -> impl Parser<'a, U> {
+        |s| match self.try_parse(s) {
+            Ok((x, s)) => Ok((f(x), s)),
+            Err(e) => Err(e),
+        }
+    }
 }
 
 impl<'b, T, U: Fn(&'b str) -> ParseResult<'b, T>> Parser<'b, T> for U {
@@ -111,6 +127,10 @@ impl Parser<'_, Self> for char {
     }
 }
 
+pub const fn nothing(s: &str) -> ParseResult<'_, ()> {
+    Ok(((), s))
+}
+
 pub fn space(s: &str) -> ParseResult<'_, char> {
     ' '.or(&'\t').try_parse(s)
 }
@@ -119,8 +139,23 @@ pub fn spaces(s: &str) -> ParseResult<'_, Vec<char>> {
     space.any_amount().try_parse(s)
 }
 
+pub fn eof(s: &str) -> ParseResult<'_, ()> {
+    s.is_empty().then_some(((), s)).ok_or(ParseError)
+}
+
+pub fn identifier_boundary(s: &str) -> ParseResult<'_, ()> {
+    nothing
+        .lookahead(
+            &Predicate(&|c| !c.is_alphanumeric() && c != '_')
+                .map(&|_| ())
+                .or(&eof),
+        )
+        .try_parse(s)
+}
+
 #[derive(Debug)]
 pub enum Expression {
+    None,
     Number(f64),
     Identifier(String),
 }
@@ -155,4 +190,15 @@ pub fn identifier(s: &str) -> ParseResult<'_, Expression> {
     name.extend(tail);
 
     Ok((Expression::Identifier(name.into_iter().collect()), s))
+}
+
+pub fn none(s: &str) -> ParseResult<'_, Expression> {
+    "None"
+        .followed_by(&identifier_boundary)
+        .map(&|_| Expression::None)
+        .try_parse(s)
+}
+
+pub fn expression(s: &str) -> ParseResult<'_, Expression> {
+    none.or(&number).or(&identifier).try_parse(s)
 }
