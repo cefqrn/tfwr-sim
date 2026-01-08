@@ -23,18 +23,21 @@ impl<'a> From<&'a str> for ParseInput<'a> {
 
 pub type ParseResult<'a, T> = Result<(T, ParseInput<'a>), ParseError>;
 
-pub trait Parser<'a, T> {
+pub trait Parser<'a, T>
+where
+    Self: Sized,
+{
     fn try_parse(&self, input: ParseInput<'a>) -> ParseResult<'a, T>;
 
-    fn maybe(&self) -> impl Parser<'a, Option<T>> {
-        |input| match self.try_parse(input) {
+    fn maybe(self) -> impl Parser<'a, Option<T>> {
+        move |input| match self.try_parse(input) {
             Ok((x, input)) => Ok((Some(x), input)),
             Err(_) => Ok((None, input)),
         }
     }
 
-    fn any_amount(&self) -> impl Parser<'a, Vec<T>> {
-        |mut input| {
+    fn any_amount(self) -> impl Parser<'a, Vec<T>> {
+        move |mut input| {
             let mut result = Vec::new();
             while let Ok((x, rest)) = self.try_parse(input) {
                 result.push(x);
@@ -45,8 +48,8 @@ pub trait Parser<'a, T> {
         }
     }
 
-    fn at_least_one(&self) -> impl Parser<'a, (T, Vec<T>)> {
-        |input| {
+    fn at_least_one(self) -> impl Parser<'a, (T, Vec<T>)> {
+        move |input| {
             let (x, mut input) = self.try_parse(input)?;
 
             let mut xs = Vec::new();
@@ -59,8 +62,8 @@ pub trait Parser<'a, T> {
         }
     }
 
-    fn followed_by<U>(&self, other: &impl Parser<'a, U>) -> impl Parser<'a, T> {
-        |input| {
+    fn followed_by<U>(self, other: impl Parser<'a, U>) -> impl Parser<'a, T> {
+        move |input| {
             let (x, input) = self.try_parse(input)?;
             let (_, input) = other.try_parse(input)?;
 
@@ -68,8 +71,8 @@ pub trait Parser<'a, T> {
         }
     }
 
-    fn before<U>(&self, other: &impl Parser<'a, U>) -> impl Parser<'a, U> {
-        |input| {
+    fn before<U>(self, other: impl Parser<'a, U>) -> impl Parser<'a, U> {
+        move |input| {
             let (_, input) = self.try_parse(input)?;
             let (x, input) = other.try_parse(input)?;
 
@@ -77,8 +80,8 @@ pub trait Parser<'a, T> {
         }
     }
 
-    fn and<U>(&self, other: &impl Parser<'a, U>) -> impl Parser<'a, (T, U)> {
-        |input| {
+    fn and<U>(self, other: impl Parser<'a, U>) -> impl Parser<'a, (T, U)> {
+        move |input| {
             let (x, input) = self.try_parse(input)?;
             let (y, input) = other.try_parse(input)?;
 
@@ -86,15 +89,15 @@ pub trait Parser<'a, T> {
         }
     }
 
-    fn or(&self, other: &impl Parser<'a, T>) -> impl Parser<'a, T> {
-        |input| match self.try_parse(input) {
+    fn or(self, other: impl Parser<'a, T>) -> impl Parser<'a, T> {
+        move |input| match self.try_parse(input) {
             r @ Ok(_) => r,
             Err(_) => other.try_parse(input),
         }
     }
 
-    fn lookahead<U>(&self, other: &impl Parser<'a, U>) -> impl Parser<'a, T> {
-        |input| {
+    fn lookahead<U>(self, other: impl Parser<'a, U>) -> impl Parser<'a, T> {
+        move |input| {
             let (x, input) = self.try_parse(input)?;
             let _ = other.try_parse(input)?;
 
@@ -102,8 +105,8 @@ pub trait Parser<'a, T> {
         }
     }
 
-    fn map<U>(&self, f: &impl Fn(T) -> U) -> impl Parser<'a, U> {
-        |input| match self.try_parse(input) {
+    fn map<U>(self, f: impl Fn(T) -> U) -> impl Parser<'a, U> {
+        move |input| match self.try_parse(input) {
             Ok((x, input)) => Ok((f(x), input)),
             Err(e) => Err(e),
         }
@@ -118,6 +121,7 @@ impl<'b, T, U: Fn(ParseInput<'b>) -> ParseResult<'b, T>> Parser<'b, T> for U {
 
 // Pattern is nightly
 // and Fn(char) -> bool conflicts with above
+#[derive(Clone, Copy)]
 struct Predicate<'a>(&'a dyn Fn(char) -> bool);
 impl<'b> Parser<'b, char> for Predicate<'_> {
     fn try_parse(&self, input: ParseInput<'b>) -> ParseResult<'b, char> {
@@ -158,7 +162,7 @@ pub fn newline(input: ParseInput<'_>) -> ParseResult<'_, char> {
 }
 
 pub fn space(input: ParseInput<'_>) -> ParseResult<'_, char> {
-    ' '.or(&'\t').try_parse(input)
+    ' '.or('\t').try_parse(input)
 }
 
 pub fn spaces(input: ParseInput<'_>) -> ParseResult<'_, Vec<char>> {
@@ -166,22 +170,22 @@ pub fn spaces(input: ParseInput<'_>) -> ParseResult<'_, Vec<char>> {
 }
 
 pub fn comment(input: ParseInput<'_>) -> ParseResult<'_, Vec<char>> {
-    '#'.before(&Predicate(&|c| c != '\n').any_amount())
+    '#'.before(Predicate(&|c| c != '\n').any_amount())
         .try_parse(input)
 }
 
 pub fn trail(input: ParseInput<'_>) -> ParseResult<'_, Vec<Option<Vec<char>>>> {
     spaces
-        .before(&comment.maybe().followed_by(&newline))
+        .before(comment.maybe().followed_by(newline))
         .any_amount()
         .try_parse(input)
 }
 
 pub fn whitespace(input: ParseInput<'_>) -> ParseResult<'_, Vec<Option<Vec<char>>>> {
     if input.enclosure_amount > 0 {
-        trail.followed_by(&spaces).try_parse(input)
+        trail.followed_by(spaces).try_parse(input)
     } else {
-        spaces.map(&|_| Vec::new()).try_parse(input)
+        spaces.map(|_| Vec::new()).try_parse(input)
     }
 }
 
@@ -192,9 +196,9 @@ pub fn eof(input: ParseInput<'_>) -> ParseResult<'_, ()> {
 pub fn identifier_boundary(input: ParseInput<'_>) -> ParseResult<'_, ()> {
     nothing
         .lookahead(
-            &Predicate(&|c| !c.is_alphanumeric() && c != '_')
-                .map(&|_| ())
-                .or(&eof),
+            Predicate(&|c| !c.is_alphanumeric() && c != '_')
+                .map(|_| ())
+                .or(eof),
         )
         .try_parse(input)
 }
@@ -234,7 +238,7 @@ pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
 
     let ((whole, fractional), input) = digit
         .any_amount()
-        .and(&'.'.before(&digit.at_least_one()).maybe())
+        .and('.'.before(digit.at_least_one()).maybe())
         .try_parse(input)?;
 
     let mut result = whole;
@@ -252,7 +256,7 @@ pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
 
 pub fn identifier_string(input: ParseInput<'_>) -> ParseResult<'_, String> {
     let ((head, tail), input) = Predicate(&|c| c.is_ascii_alphabetic() || c == '_')
-        .and(&Predicate(&|c| c.is_alphanumeric() || c == '_').any_amount())
+        .and(Predicate(&|c| c.is_alphanumeric() || c == '_').any_amount())
         .try_parse(input)?;
 
     let mut name = vec![head];
@@ -263,20 +267,20 @@ pub fn identifier_string(input: ParseInput<'_>) -> ParseResult<'_, String> {
 
 pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     identifier_string
-        .map(&Expression::Identifier)
+        .map(Expression::Identifier)
         .try_parse(input)
 }
 
 pub fn none(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     "None"
-        .followed_by(&identifier_boundary)
-        .map(&|_| Expression::Literal(Value::None))
+        .followed_by(identifier_boundary)
+        .map(|_| Expression::Literal(Value::None))
         .try_parse(input)
 }
 
 pub fn string(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     let escaped = |input| {
-        let (_, rest) = '\\'.and(&Predicate(&|_| true)).try_parse(input)?;
+        let (_, rest) = '\\'.and(Predicate(&|_| true)).try_parse(input)?;
         let taken = &input.s[..input.s.len() - rest.s.len()];
 
         Ok((taken, rest))
@@ -290,18 +294,14 @@ pub fn string(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     };
 
     let (s, rest) = '"'
-        .before(&escaped.or(&unescaped).any_amount())
-        .followed_by(&'"')
+        .before(escaped.or(unescaped).any_amount())
+        .followed_by('"')
         .try_parse(input)?;
     Ok((Expression::Literal(Value::String(s.join(""))), rest))
 }
 
 pub fn atom(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
-    string
-        .or(&none)
-        .or(&number)
-        .or(&identifier)
-        .try_parse(input)
+    string.or(none).or(number).or(identifier).try_parse(input)
 }
 
 #[derive(Debug)]
@@ -387,36 +387,46 @@ impl Expression {
     }
 }
 
+pub fn enclosed(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+    open_paren
+        .before(whitespace)
+        .before(expression)
+        .followed_by(whitespace)
+        .followed_by(close_paren)
+        .try_parse(input)
+}
+
+pub fn primary(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+    enclosed.or(atom).try_parse(input)
+}
+
+pub fn args(input: ParseInput<'_>) -> ParseResult<'_, UnaryOperation> {
+    open_paren
+        .followed_by(whitespace)
+        .followed_by(close_paren)
+        .map(|_| UnaryOperation::Call)
+        .try_parse(input)
+}
+
+pub fn call(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+    let (result, input) = primary.try_parse(input)?;
+    let (calls, input) = whitespace.before(args).any_amount().try_parse(input)?;
+
+    let result = calls.into_iter().fold(result, |acc, call| {
+        Expression::Operation(Operation::Unary(call, Box::new(acc)))
+    });
+
+    Ok((result, input))
+}
+
 pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
-    let enclosed = open_paren.before(&whitespace);
-    let enclosed = enclosed.before(&expression);
-    let enclosed = enclosed.followed_by(&whitespace);
-    let enclosed = enclosed.followed_by(&close_paren);
-
-    let primary = enclosed.or(&atom);
-
-    let args = open_paren.followed_by(&whitespace);
-    let args = args.followed_by(&close_paren);
-    let args = args.map(&|_| UnaryOperation::Call);
-
-    let call = |input| -> ParseResult<'_, Expression> {
-        let (result, input) = primary.try_parse(input)?;
-        let (calls, input) = whitespace.before(&args).any_amount().try_parse(input)?;
-
-        let result = calls.into_iter().fold(result, |acc, call| {
-            Expression::Operation(Operation::Unary(call, Box::new(acc)))
-        });
-
-        Ok((result, input))
-    };
-
     let pos_neg = |input| {
-        let pos = '+'.map(&|_| UnaryOperation::Pos);
-        let neg = '-'.map(&|_| UnaryOperation::Neg);
+        let pos = '+'.map(|_| UnaryOperation::Pos);
+        let neg = '-'.map(|_| UnaryOperation::Neg);
 
         let (ops, input) = neg
-            .or(&pos)
-            .followed_by(&whitespace)
+            .or(pos)
+            .followed_by(whitespace)
             .any_amount()
             .try_parse(input)?;
         let (result, input) = call.try_parse(input)?;
@@ -429,15 +439,15 @@ pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     };
 
     let mul_div = |input| {
-        let mul = '*'.map(&|_| BinaryOperation::Mul);
-        let div = '/'.map(&|_| BinaryOperation::Div);
+        let mul = '*'.map(|_| BinaryOperation::Mul);
+        let div = '/'.map(|_| BinaryOperation::Div);
 
         let ((initial_term, terms), input) = pos_neg
             .and(
-                &whitespace
-                    .before(&mul.or(&div))
-                    .followed_by(&whitespace)
-                    .and(&pos_neg)
+                whitespace
+                    .before(mul.or(div))
+                    .followed_by(whitespace)
+                    .and(pos_neg)
                     .any_amount(),
             )
             .try_parse(input)?;
@@ -450,15 +460,15 @@ pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     };
 
     let add_sub = |input| {
-        let add = '+'.map(&|_| BinaryOperation::Add);
-        let sub = '-'.map(&|_| BinaryOperation::Sub);
+        let add = '+'.map(|_| BinaryOperation::Add);
+        let sub = '-'.map(|_| BinaryOperation::Sub);
 
         let ((initial_term, terms), input) = mul_div
             .and(
-                &whitespace
-                    .before(&add.or(&sub))
-                    .followed_by(&whitespace)
-                    .and(&mul_div)
+                whitespace
+                    .before(add.or(sub))
+                    .followed_by(whitespace)
+                    .and(mul_div)
                     .any_amount(),
             )
             .try_parse(input)?;
@@ -493,11 +503,11 @@ impl Statement {
 }
 
 pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
-    let assignment = identifier_string.followed_by(&spaces);
-    let assignment = assignment.followed_by(&'=');
-    let assignment = assignment.followed_by(&spaces);
-    let assignment = assignment.and(&expression);
-    let assignment = assignment.map(&|(name, value)| Statement::Assignment(name, value));
-
+    let assignment = identifier_string
+        .followed_by(spaces)
+        .followed_by('=')
+        .followed_by(spaces)
+        .and(expression)
+        .map(|(name, value)| Statement::Assignment(name, value));
     assignment.try_parse(input)
 }
