@@ -108,4 +108,17 @@ fn main() {
     );
     let (x, _) = parser::expression.try_parse("pineapple()".into()).unwrap();
     println!("{:?}", x.evaluate());
+
+    println!(
+        "{:?}",
+        parser::expression.try_parse("--+-++-1 + ---+-+-5".into())
+    );
+    println!(
+        "{:?}",
+        parser::expression.try_parse("1 + 2 - 3 * 7 - -5 / 3".into())
+    );
+    let (x, _) = parser::expression
+        .try_parse("1 + 2 - 3 * 7 - -5 / 3".into())
+        .unwrap();
+    println!("{:?}", x.evaluate());
 }
