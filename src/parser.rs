@@ -4,98 +4,113 @@
 #[derive(Debug)]
 pub struct ParseError;
 
-pub type ParseResult<'a, T> = Result<(T, &'a str), ParseError>;
+#[derive(Clone, Copy, Debug)]
+pub struct ParseInput<'a> {
+    enclosed: bool,
+    s: &'a str,
+}
+
+impl<'a> From<&'a str> for ParseInput<'a> {
+    fn from(value: &'a str) -> Self {
+        ParseInput {
+            enclosed: false,
+            s: value,
+        }
+    }
+}
+
+pub type ParseResult<'a, T> = Result<(T, ParseInput<'a>), ParseError>;
 
 pub trait Parser<'a, T> {
-    fn try_parse(&self, s: &'a str) -> ParseResult<'a, T>;
+    fn try_parse(&self, input: ParseInput<'a>) -> ParseResult<'a, T>;
 
     fn maybe(&self) -> impl Parser<'a, Option<T>> {
-        |s| match self.try_parse(s) {
-            Ok((x, s)) => Ok((Some(x), s)),
-            Err(_) => Ok((None, s)),
+        |input| match self.try_parse(input) {
+            Ok((x, input)) => Ok((Some(x), input)),
+            Err(_) => Ok((None, input)),
         }
     }
 
     fn any_amount(&self) -> impl Parser<'a, Vec<T>> {
-        |mut s| {
+        |mut input| {
             let mut result = Vec::new();
-            while let Ok((x, rest)) = self.try_parse(s) {
+            while let Ok((x, rest)) = self.try_parse(input) {
                 result.push(x);
-                s = rest;
+                input = rest;
             }
 
-            Ok((result, s))
+            Ok((result, input))
         }
     }
 
     fn at_least_one(&self) -> impl Parser<'a, (T, Vec<T>)> {
-        |s| {
-            let (x, mut s) = self.try_parse(s)?;
+        |input| {
+            let (x, mut input) = self.try_parse(input)?;
 
             let mut xs = Vec::new();
-            while let Ok((x, rest)) = self.try_parse(s) {
+            while let Ok((x, rest)) = self.try_parse(input) {
                 xs.push(x);
-                s = rest;
+                input = rest;
             }
 
-            Ok(((x, xs), s))
+            Ok(((x, xs), input))
         }
     }
 
     fn followed_by<U>(&self, other: &impl Parser<'a, U>) -> impl Parser<'a, T> {
-        |s| {
-            let (x, s) = self.try_parse(s)?;
-            let (_, s) = other.try_parse(s)?;
+        |input| {
+            let (x, input) = self.try_parse(input)?;
+            let (_, input) = other.try_parse(input)?;
 
-            Ok((x, s))
+            Ok((x, input))
         }
     }
 
     fn before<U>(&self, other: &impl Parser<'a, U>) -> impl Parser<'a, U> {
-        |s| {
-            let (_, s) = self.try_parse(s)?;
-            let (x, s) = other.try_parse(s)?;
+        |input| {
+            let (_, input) = self.try_parse(input)?;
+            let (x, input) = other.try_parse(input)?;
 
-            Ok((x, s))
+            Ok((x, input))
         }
     }
 
     fn and<U>(&self, other: &impl Parser<'a, U>) -> impl Parser<'a, (T, U)> {
-        |s| {
-            let (x, s) = self.try_parse(s)?;
-            let (y, s) = other.try_parse(s)?;
+        |input| {
+            let (x, input) = self.try_parse(input)?;
+            let (y, input) = other.try_parse(input)?;
 
-            Ok(((x, y), s))
+            Ok(((x, y), input))
         }
     }
 
     fn or(&self, other: &impl Parser<'a, T>) -> impl Parser<'a, T> {
-        |s| match self.try_parse(s) {
+        |input| match self.try_parse(input) {
             r @ Ok(_) => r,
-            Err(_) => other.try_parse(s),
+            Err(_) => other.try_parse(input),
         }
     }
 
     fn lookahead<U>(&self, other: &impl Parser<'a, U>) -> impl Parser<'a, T> {
-        |s| {
-            let (x, s) = self.try_parse(s)?;
-            let _ = other.try_parse(s)?;
+        |input| {
+            let (x, input) = self.try_parse(input)?;
+            let _ = other.try_parse(input)?;
 
-            Ok((x, s))
+            Ok((x, input))
         }
     }
 
     fn map<U>(&self, f: &impl Fn(T) -> U) -> impl Parser<'a, U> {
-        |s| match self.try_parse(s) {
-            Ok((x, s)) => Ok((f(x), s)),
+        |input| match self.try_parse(input) {
+            Ok((x, input)) => Ok((f(x), input)),
             Err(e) => Err(e),
         }
     }
 }
 
-impl<'b, T, U: Fn(&'b str) -> ParseResult<'b, T>> Parser<'b, T> for U {
-    fn try_parse(&self, s: &'b str) -> ParseResult<'b, T> {
-        self(s)
+impl<'b, T, U: Fn(ParseInput<'b>) -> ParseResult<'b, T>> Parser<'b, T> for U {
+    fn try_parse(&self, input: ParseInput<'b>) -> ParseResult<'b, T> {
+        self(input)
     }
 }
 
@@ -103,54 +118,67 @@ impl<'b, T, U: Fn(&'b str) -> ParseResult<'b, T>> Parser<'b, T> for U {
 // and Fn(char) -> bool conflicts with above
 struct Predicate<'a>(&'a dyn Fn(char) -> bool);
 impl<'b> Parser<'b, char> for Predicate<'_> {
-    fn try_parse(&self, s: &'b str) -> ParseResult<'b, char> {
-        let c = s.chars().next().ok_or(ParseError)?;
+    fn try_parse(&self, input: ParseInput<'b>) -> ParseResult<'b, char> {
+        let mut chars = input.s.chars();
+        let c = chars.next().ok_or(ParseError)?;
         self.0(c)
-            .then(|| (c, s.strip_prefix(c).expect("got prefix from string")))
+            .then_some((
+                c,
+                ParseInput {
+                    s: chars.as_str(),
+                    ..input
+                },
+            ))
             .ok_or(ParseError)
     }
 }
 
 impl Parser<'_, Self> for &str {
-    fn try_parse<'a>(&self, s: &'a str) -> ParseResult<'a, Self> {
-        s.strip_prefix(*self)
-            .map(|rest| (*self, rest))
-            .ok_or(ParseError)
+    fn try_parse<'a>(&self, input: ParseInput<'a>) -> ParseResult<'a, Self> {
+        let rest = input.s.strip_prefix(self).ok_or(ParseError)?;
+        Ok((self, ParseInput { s: rest, ..input }))
     }
 }
 
 impl Parser<'_, Self> for char {
-    fn try_parse<'a>(&self, s: &'a str) -> ParseResult<'a, Self> {
-        s.strip_prefix(*self)
-            .map(|rest| (*self, rest))
-            .ok_or(ParseError)
+    fn try_parse<'a>(&self, input: ParseInput<'a>) -> ParseResult<'a, Self> {
+        let rest = input.s.strip_prefix(*self).ok_or(ParseError)?;
+        Ok((*self, ParseInput { s: rest, ..input }))
     }
 }
 
-pub const fn nothing(s: &str) -> ParseResult<'_, ()> {
-    Ok(((), s))
+pub const fn nothing(input: ParseInput<'_>) -> ParseResult<'_, ()> {
+    Ok(((), input))
 }
 
-pub fn space(s: &str) -> ParseResult<'_, char> {
-    ' '.or(&'\t').try_parse(s)
+pub fn newline(input: ParseInput<'_>) -> ParseResult<'_, char> {
+    '\n'.try_parse(input)
 }
 
-pub fn spaces(s: &str) -> ParseResult<'_, Vec<char>> {
-    space.any_amount().try_parse(s)
+pub fn space(input: ParseInput<'_>) -> ParseResult<'_, char> {
+    if input.enclosed {
+        ' '.or(&'\t').or(&newline).try_parse(input)
+    } else {
+        ' '.or(&'\t').try_parse(input)
+    }
 }
 
-pub fn eof(s: &str) -> ParseResult<'_, ()> {
-    s.is_empty().then_some(((), s)).ok_or(ParseError)
+pub fn spaces(input: ParseInput<'_>) -> ParseResult<'_, Vec<char>> {
+    space.any_amount().try_parse(input)
 }
 
-pub fn identifier_boundary(s: &str) -> ParseResult<'_, ()> {
+pub fn eof(input: ParseInput<'_>) -> ParseResult<'_, ()> {
+    input.s.is_empty().then_some(((), input)).ok_or(ParseError)
+}
+
+pub fn identifier_boundary(input: ParseInput<'_>) -> ParseResult<'_, ()> {
     nothing
         .lookahead(
             &Predicate(&|c| !c.is_alphanumeric() && c != '_')
                 .map(&|_| ())
                 .or(&eof),
         )
-        .try_parse(s)
+        .try_parse(input)
 }
 
 #[derive(Debug)]
@@ -160,13 +188,13 @@ pub enum Expression {
     Identifier(String),
 }
 
-pub fn number(s: &str) -> ParseResult<'_, Expression> {
+pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     let digit = Predicate(&|c| c.is_ascii_digit());
 
-    let ((whole, fractional), s) = digit
+    let ((whole, fractional), input) = digit
         .any_amount()
         .and(&'.'.before(&digit.at_least_one()).maybe())
-        .try_parse(s)?;
+        .try_parse(input)?;
 
     let mut result = whole;
     if let Some((d, ds)) = fractional {
@@ -178,27 +206,27 @@ pub fn number(s: &str) -> ParseResult<'_, Expression> {
     }
     let result = String::from_iter(result).parse().expect("numbers and dot");
 
-    Ok((Expression::Number(result), s))
+    Ok((Expression::Number(result), input))
 }
 
-pub fn identifier(s: &str) -> ParseResult<'_, Expression> {
-    let ((head, tail), s) = Predicate(&|c| c.is_ascii_alphabetic() || c == '_')
+pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+    let ((head, tail), input) = Predicate(&|c| c.is_ascii_alphabetic() || c == '_')
         .and(&Predicate(&|c| c.is_alphanumeric() || c == '_').any_amount())
-        .try_parse(s)?;
+        .try_parse(input)?;
 
     let mut name = vec![head];
     name.extend(tail);
 
-    Ok((Expression::Identifier(name.into_iter().collect()), s))
+    Ok((Expression::Identifier(name.into_iter().collect()), input))
 }
 
-pub fn none(s: &str) -> ParseResult<'_, Expression> {
+pub fn none(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     "None"
         .followed_by(&identifier_boundary)
         .map(&|_| Expression::None)
-        .try_parse(s)
+        .try_parse(input)
 }
 
-pub fn expression(s: &str) -> ParseResult<'_, Expression> {
-    none.or(&number).or(&identifier).try_parse(s)
+pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+    none.or(&number).or(&identifier).try_parse(input)
 }
