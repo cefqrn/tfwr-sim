@@ -156,15 +156,31 @@ pub fn newline(input: ParseInput<'_>) -> ParseResult<'_, char> {
 }
 
 pub fn space(input: ParseInput<'_>) -> ParseResult<'_, char> {
-    if input.enclosed {
-        ' '.or(&'\t').or(&newline).try_parse(input)
-    } else {
-        ' '.or(&'\t').try_parse(input)
-    }
+    ' '.or(&'\t').try_parse(input)
 }
 
 pub fn spaces(input: ParseInput<'_>) -> ParseResult<'_, Vec<char>> {
     space.any_amount().try_parse(input)
+}
+
+pub fn comment(input: ParseInput<'_>) -> ParseResult<'_, Vec<char>> {
+    '#'.before(&Predicate(&|c| c != '\n').any_amount())
+        .try_parse(input)
+}
+
+pub fn trail(input: ParseInput<'_>) -> ParseResult<'_, Vec<Option<Vec<char>>>> {
+    spaces
+        .before(&comment.maybe().followed_by(&newline))
+        .any_amount()
+        .try_parse(input)
+}
+
+pub fn whitespace(input: ParseInput<'_>) -> ParseResult<'_, Vec<Option<Vec<char>>>> {
+    if input.enclosed {
+        trail.followed_by(&spaces).try_parse(input)
+    } else {
+        spaces.map(&|_| Vec::new()).try_parse(input)
+    }
 }
 
 pub fn eof(input: ParseInput<'_>) -> ParseResult<'_, ()> {
@@ -182,14 +198,14 @@ pub fn identifier_boundary(input: ParseInput<'_>) -> ParseResult<'_, ()> {
 }
 
 #[derive(Debug)]
-pub enum Expression {
+pub enum Value {
     None,
     String(String),
     Number(f64),
     Identifier(String),
 }
 
-pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Value> {
     let digit = Predicate(&|c| c.is_ascii_digit());
 
     let ((whole, fractional), input) = digit
@@ -207,10 +223,10 @@ pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     }
     let result = String::from_iter(result).parse().expect("numbers and dot");
 
-    Ok((Expression::Number(result), input))
+    Ok((Value::Number(result), input))
 }
 
-pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Value> {
     let ((head, tail), input) = Predicate(&|c| c.is_ascii_alphabetic() || c == '_')
         .and(&Predicate(&|c| c.is_alphanumeric() || c == '_').any_amount())
         .try_parse(input)?;
@@ -218,17 +234,17 @@ pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     let mut name = vec![head];
     name.extend(tail);
 
-    Ok((Expression::Identifier(name.into_iter().collect()), input))
+    Ok((Value::Identifier(name.into_iter().collect()), input))
 }
 
-pub fn none(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+pub fn none(input: ParseInput<'_>) -> ParseResult<'_, Value> {
     "None"
         .followed_by(&identifier_boundary)
-        .map(&|_| Expression::None)
+        .map(&|_| Value::None)
         .try_parse(input)
 }
 
-pub fn string(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+pub fn string(input: ParseInput<'_>) -> ParseResult<'_, Value> {
     fn escaped(input: ParseInput<'_>) -> ParseResult<'_, &str> {
         let (_, rest) = '\\'.and(&Predicate(&|_| true)).try_parse(input)?;
         let taken = &input.s[..input.s.len() - rest.s.len()];
@@ -247,13 +263,48 @@ pub fn string(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
         .before(&escaped.or(&unescaped).any_amount())
         .followed_by(&'"')
         .try_parse(input)?;
-    Ok((Expression::String(s.join("")), rest))
+    Ok((Value::String(s.join("")), rest))
 }
 
-pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+pub fn atom(input: ParseInput<'_>) -> ParseResult<'_, Value> {
     string
         .or(&none)
         .or(&number)
         .or(&identifier)
+        .try_parse(input)
+}
+
+#[derive(Debug)]
+pub enum Expression {
+    Value(Value),
+}
+
+pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+    let enclosed = |input| {
+        let (_, input) = '('.try_parse(input)?;
+
+        let initially_enclosed = input.enclosed;
+        let input = ParseInput {
+            enclosed: true,
+            ..input
+        };
+
+        let (result, input) = whitespace
+            .before(&expression)
+            .followed_by(&whitespace)
+            .try_parse(input)?;
+
+        let input = ParseInput {
+            enclosed: initially_enclosed,
+            ..input
+        };
+
+        let (_, input) = ')'.try_parse(input)?;
+
+        Ok((result, input))
+    };
+
+    enclosed
+        .or(&atom.map(&|x| Expression::Value(x)))
         .try_parse(input)
 }

@@ -11,6 +11,7 @@ fn main() {
             .at_least_one()
             .try_parse("pineapplepineapple".into())
     );
+
     println!(
         "{:?}",
         parser::number
@@ -22,6 +23,7 @@ fn main() {
     );
     println!("{:?}", parser::number.try_parse(".".into()));
     println!("{:?}", parser::number.try_parse("5.".into()));
+
     println!("{:?}", parser::identifier.try_parse("pineapple ".into()));
     println!("{:?}", parser::identifier.try_parse("1pineapple ".into()));
     println!(
@@ -34,9 +36,11 @@ fn main() {
         parser::identifier
             .try_parse("ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω123 ".into())
     );
+
     println!("{:?}", parser::expression.try_parse("None".into()));
     println!("{:?}", parser::expression.try_parse("Noneα".into()));
     println!("{:?}", parser::expression.try_parse("None ".into()));
+
     println!("{:?}", parser::expression.try_parse("\"\" ".into()));
     println!(
         "{:?}",
@@ -45,5 +49,18 @@ fn main() {
     println!(
         "{:?}",
         parser::expression.try_parse("\"\\\"pineapple\\\" pizza\" ".into())
+    );
+
+    println!("{:?}", parser::expression.try_parse("(1)".into()));
+    println!(
+        "{:?}",
+        parser::expression.try_parse(
+            "(#comment
+        (1 # comment
+        )
+
+        ) # comment"
+                .into()
+        )
     );
 }
