@@ -85,7 +85,7 @@ fn main() {
     );
 
     let mut context = Context::new();
-    context.insert("pineapple", parser::Value::Number(123.));
+    context.insert("pineapple".to_owned(), parser::Value::Number(123.));
 
     let (x, _) = parser::expression.try_parse("-5.6".into()).unwrap();
     println!("{:?}", x.evaluate(&mut context));
@@ -129,4 +129,9 @@ fn main() {
         .try_parse("567 * -pineapple".into())
         .unwrap();
     println!("{:?}", x.evaluate(&mut context));
+
+    let (x, _) = parser::statement.try_parse("pizza = 5".into()).unwrap();
+    println!("{context:?} {x:?}");
+    x.execute(&mut context);
+    println!("{context:?}");
 }

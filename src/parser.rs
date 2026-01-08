@@ -250,7 +250,7 @@ pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     Ok((Expression::Literal(Value::Number(result)), input))
 }
 
-pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+pub fn identifier_string(input: ParseInput<'_>) -> ParseResult<'_, String> {
     let ((head, tail), input) = Predicate(&|c| c.is_ascii_alphabetic() || c == '_')
         .and(&Predicate(&|c| c.is_alphanumeric() || c == '_').any_amount())
         .try_parse(input)?;
@@ -258,7 +258,13 @@ pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     let mut name = vec![head];
     name.extend(tail);
 
-    Ok((Expression::Identifier(name.into_iter().collect()), input))
+    Ok((name.into_iter().collect(), input))
+}
+
+pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+    identifier_string
+        .map(&Expression::Identifier)
+        .try_parse(input)
 }
 
 pub fn none(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
@@ -369,13 +375,13 @@ impl Operation {
     }
 }
 
-pub type Context<'a> = HashMap<&'a str, Value>;
+pub type Context = HashMap<String, Value>;
 
 impl Expression {
-    pub fn evaluate(self, context: &mut Context<'_>) -> Result<Value, EvaluationError> {
+    pub fn evaluate(self, context: &mut Context) -> Result<Value, EvaluationError> {
         match self {
             Self::Literal(v) => Ok(v),
-            Self::Identifier(n) => context.get(n.as_str()).cloned().ok_or(EvaluationError),
+            Self::Identifier(n) => context.get(&n).cloned().ok_or(EvaluationError),
             Self::Operation(op) => op.evaluate(context),
         }
     }
@@ -465,4 +471,33 @@ pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     };
 
     add_sub.try_parse(input)
+}
+
+#[derive(Debug)]
+pub enum Statement {
+    Assignment(String, Expression),
+}
+
+impl Statement {
+    pub fn execute(self, context: &mut Context) -> Option<EvaluationError> {
+        match self {
+            Self::Assignment(name, value) => match value.evaluate(context) {
+                Ok(value) => {
+                    context.insert(name, value);
+                    None
+                }
+                Err(e) => Some(e),
+            },
+        }
+    }
+}
+
+pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
+    let assignment = identifier_string.followed_by(&spaces);
+    let assignment = assignment.followed_by(&'=');
+    let assignment = assignment.followed_by(&spaces);
+    let assignment = assignment.and(&expression);
+    let assignment = assignment.map(&|(name, value)| Statement::Assignment(name, value));
+
+    assignment.try_parse(input)
 }
