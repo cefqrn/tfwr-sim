@@ -1,6 +1,6 @@
 pub mod parser;
 
-use parser::Parser;
+use parser::{Context, Parser};
 
 fn main() {
     println!("{:?}", "pineapple".try_parse("pineapple pizza".into()));
@@ -84,10 +84,13 @@ fn main() {
         )
     );
 
+    let mut context = Context::new();
+    context.insert("pineapple", parser::Value::Number(123.));
+
     let (x, _) = parser::expression.try_parse("-5.6".into()).unwrap();
-    println!("{:?}", x.evaluate());
+    println!("{:?}", x.evaluate(&mut context));
     let (x, _) = parser::expression.try_parse("+5.6".into()).unwrap();
-    println!("{:?}", x.evaluate());
+    println!("{:?}", x.evaluate(&mut context));
 
     println!(
         "{:?}",
@@ -107,7 +110,7 @@ fn main() {
         )
     );
     let (x, _) = parser::expression.try_parse("pineapple()".into()).unwrap();
-    println!("{:?}", x.evaluate());
+    println!("{:?}", x.evaluate(&mut context));
 
     println!(
         "{:?}",
@@ -120,5 +123,10 @@ fn main() {
     let (x, _) = parser::expression
         .try_parse("1 + 2 - 3 * 7 - -5 / 3".into())
         .unwrap();
-    println!("{:?}", x.evaluate());
+    println!("{:?}", x.evaluate(&mut context));
+
+    let (x, _) = parser::expression
+        .try_parse("567 * -pineapple".into())
+        .unwrap();
+    println!("{:?}", x.evaluate(&mut context));
 }

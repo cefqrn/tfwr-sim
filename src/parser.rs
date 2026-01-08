@@ -1,6 +1,8 @@
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::missing_panics_doc)]
 
+use std::collections::HashMap;
+
 #[derive(Debug)]
 pub struct ParseError;
 
@@ -219,15 +221,15 @@ pub fn close_paren(input: ParseInput<'_>) -> ParseResult<'_, char> {
     ))
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Value {
     None,
     String(String),
     Number(f64),
-    Identifier(String),
+    Function,
 }
 
-pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Value> {
+pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Atom> {
     let digit = Predicate(&|c| c.is_ascii_digit());
 
     let ((whole, fractional), input) = digit
@@ -245,10 +247,10 @@ pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Value> {
     }
     let result = String::from_iter(result).parse().expect("numbers and dot");
 
-    Ok((Value::Number(result), input))
+    Ok((Atom::Literal(Value::Number(result)), input))
 }
 
-pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Value> {
+pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Atom> {
     let ((head, tail), input) = Predicate(&|c| c.is_ascii_alphabetic() || c == '_')
         .and(&Predicate(&|c| c.is_alphanumeric() || c == '_').any_amount())
         .try_parse(input)?;
@@ -256,39 +258,39 @@ pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Value> {
     let mut name = vec![head];
     name.extend(tail);
 
-    Ok((Value::Identifier(name.into_iter().collect()), input))
+    Ok((Atom::Identifier(name.into_iter().collect()), input))
 }
 
-pub fn none(input: ParseInput<'_>) -> ParseResult<'_, Value> {
+pub fn none(input: ParseInput<'_>) -> ParseResult<'_, Atom> {
     "None"
         .followed_by(&identifier_boundary)
-        .map(&|_| Value::None)
+        .map(&|_| Atom::Literal(Value::None))
         .try_parse(input)
 }
 
-pub fn string(input: ParseInput<'_>) -> ParseResult<'_, Value> {
-    fn escaped(input: ParseInput<'_>) -> ParseResult<'_, &str> {
+pub fn string(input: ParseInput<'_>) -> ParseResult<'_, Atom> {
+    let escaped = |input| {
         let (_, rest) = '\\'.and(&Predicate(&|_| true)).try_parse(input)?;
         let taken = &input.s[..input.s.len() - rest.s.len()];
 
         Ok((taken, rest))
-    }
+    };
 
-    fn unescaped(input: ParseInput<'_>) -> ParseResult<'_, &str> {
+    let unescaped = |input| {
         let (_, rest) = Predicate(&|c| c != '"').try_parse(input)?;
         let taken = &input.s[..input.s.len() - rest.s.len()];
 
         Ok((taken, rest))
-    }
+    };
 
     let (s, rest) = '"'
         .before(&escaped.or(&unescaped).any_amount())
         .followed_by(&'"')
         .try_parse(input)?;
-    Ok((Value::String(s.join("")), rest))
+    Ok((Atom::Literal(Value::String(s.join(""))), rest))
 }
 
-pub fn atom(input: ParseInput<'_>) -> ParseResult<'_, Value> {
+pub fn atom(input: ParseInput<'_>) -> ParseResult<'_, Atom> {
     string
         .or(&none)
         .or(&number)
@@ -318,8 +320,14 @@ pub enum Operation {
 }
 
 #[derive(Debug)]
+pub enum Atom {
+    Literal(Value),
+    Identifier(String),
+}
+
+#[derive(Debug)]
 pub enum Expression {
-    Atom(Value),
+    Atom(Atom),
     Operation(Operation),
 }
 
@@ -327,10 +335,10 @@ pub enum Expression {
 pub struct EvaluationError;
 
 impl Operation {
-    pub fn evaluate(self) -> Result<Value, EvaluationError> {
+    pub fn evaluate(self, context: &mut Context) -> Result<Value, EvaluationError> {
         match self {
             Self::Unary(op, x) => {
-                let x = x.evaluate()?;
+                let x = x.evaluate(context)?;
                 match (op, x) {
                     (UnaryOperation::Pos, Value::Number(x)) => Ok(Value::Number(x)),
                     (UnaryOperation::Neg, Value::Number(x)) => Ok(Value::Number(-x)),
@@ -338,10 +346,10 @@ impl Operation {
                 }
             }
             Self::Binary(op, x, y) => {
-                let x = x.evaluate()?;
+                let x = x.evaluate(context)?;
 
                 // will need to change for chaining with side effects
-                let y = y.evaluate()?;
+                let y = y.evaluate(context)?;
 
                 match (op, x, y) {
                     (BinaryOperation::Add, Value::Number(x), Value::Number(y)) => {
@@ -366,11 +374,16 @@ impl Operation {
     }
 }
 
+pub type Context<'a> = HashMap<&'a str, Value>;
+
 impl Expression {
-    pub fn evaluate(self) -> Result<Value, EvaluationError> {
+    pub fn evaluate(self, context: &mut Context<'_>) -> Result<Value, EvaluationError> {
         match self {
-            Self::Atom(v) => Ok(v),
-            Self::Operation(op) => op.evaluate(),
+            Self::Atom(Atom::Literal(v)) => Ok(v),
+            Self::Atom(Atom::Identifier(n)) => {
+                context.get(n.as_str()).cloned().ok_or(EvaluationError)
+            }
+            Self::Operation(op) => op.evaluate(context),
         }
     }
 }
