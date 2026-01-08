@@ -229,7 +229,7 @@ pub enum Value {
     Function,
 }
 
-pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Atom> {
+pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     let digit = Predicate(&|c| c.is_ascii_digit());
 
     let ((whole, fractional), input) = digit
@@ -247,10 +247,10 @@ pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Atom> {
     }
     let result = String::from_iter(result).parse().expect("numbers and dot");
 
-    Ok((Atom::Literal(Value::Number(result)), input))
+    Ok((Expression::Literal(Value::Number(result)), input))
 }
 
-pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Atom> {
+pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     let ((head, tail), input) = Predicate(&|c| c.is_ascii_alphabetic() || c == '_')
         .and(&Predicate(&|c| c.is_alphanumeric() || c == '_').any_amount())
         .try_parse(input)?;
@@ -258,17 +258,17 @@ pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Atom> {
     let mut name = vec![head];
     name.extend(tail);
 
-    Ok((Atom::Identifier(name.into_iter().collect()), input))
+    Ok((Expression::Identifier(name.into_iter().collect()), input))
 }
 
-pub fn none(input: ParseInput<'_>) -> ParseResult<'_, Atom> {
+pub fn none(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     "None"
         .followed_by(&identifier_boundary)
-        .map(&|_| Atom::Literal(Value::None))
+        .map(&|_| Expression::Literal(Value::None))
         .try_parse(input)
 }
 
-pub fn string(input: ParseInput<'_>) -> ParseResult<'_, Atom> {
+pub fn string(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     let escaped = |input| {
         let (_, rest) = '\\'.and(&Predicate(&|_| true)).try_parse(input)?;
         let taken = &input.s[..input.s.len() - rest.s.len()];
@@ -287,10 +287,10 @@ pub fn string(input: ParseInput<'_>) -> ParseResult<'_, Atom> {
         .before(&escaped.or(&unescaped).any_amount())
         .followed_by(&'"')
         .try_parse(input)?;
-    Ok((Atom::Literal(Value::String(s.join(""))), rest))
+    Ok((Expression::Literal(Value::String(s.join(""))), rest))
 }
 
-pub fn atom(input: ParseInput<'_>) -> ParseResult<'_, Atom> {
+pub fn atom(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     string
         .or(&none)
         .or(&number)
@@ -320,14 +320,9 @@ pub enum Operation {
 }
 
 #[derive(Debug)]
-pub enum Atom {
+pub enum Expression {
     Literal(Value),
     Identifier(String),
-}
-
-#[derive(Debug)]
-pub enum Expression {
-    Atom(Atom),
     Operation(Operation),
 }
 
@@ -379,10 +374,8 @@ pub type Context<'a> = HashMap<&'a str, Value>;
 impl Expression {
     pub fn evaluate(self, context: &mut Context<'_>) -> Result<Value, EvaluationError> {
         match self {
-            Self::Atom(Atom::Literal(v)) => Ok(v),
-            Self::Atom(Atom::Identifier(n)) => {
-                context.get(n.as_str()).cloned().ok_or(EvaluationError)
-            }
+            Self::Literal(v) => Ok(v),
+            Self::Identifier(n) => context.get(n.as_str()).cloned().ok_or(EvaluationError),
             Self::Operation(op) => op.evaluate(context),
         }
     }
@@ -394,8 +387,7 @@ pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     let enclosed = enclosed.followed_by(&whitespace);
     let enclosed = enclosed.followed_by(&close_paren);
 
-    let primary = atom.map(&|x| Expression::Atom(x));
-    let primary = enclosed.or(&primary);
+    let primary = enclosed.or(&atom);
 
     let args = open_paren.followed_by(&whitespace);
     let args = args.followed_by(&close_paren);
@@ -472,8 +464,5 @@ pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
         Ok((result, input))
     };
 
-    enclosed
-        .or(&add_sub)
-        .or(&atom.map(&|x| Expression::Atom(x)))
-        .try_parse(input)
+    add_sub.try_parse(input)
 }
