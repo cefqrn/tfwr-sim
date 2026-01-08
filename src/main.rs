@@ -37,4 +37,13 @@ fn main() {
     println!("{:?}", parser::expression.try_parse("None".into()));
     println!("{:?}", parser::expression.try_parse("Noneα".into()));
     println!("{:?}", parser::expression.try_parse("None ".into()));
+    println!("{:?}", parser::expression.try_parse("\"\" ".into()));
+    println!(
+        "{:?}",
+        parser::expression.try_parse("\"pineapple\npizza\" ".into())
+    );
+    println!(
+        "{:?}",
+        parser::expression.try_parse("\"\\\"pineapple\\\" pizza\" ".into())
+    );
 }

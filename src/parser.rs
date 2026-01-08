@@ -184,6 +184,7 @@ pub fn identifier_boundary(input: ParseInput<'_>) -> ParseResult<'_, ()> {
 #[derive(Debug)]
 pub enum Expression {
     None,
+    String(String),
     Number(f64),
     Identifier(String),
 }
@@ -227,6 +228,32 @@ pub fn none(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
         .try_parse(input)
 }
 
+pub fn string(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+    fn escaped(input: ParseInput<'_>) -> ParseResult<'_, &str> {
+        let (_, rest) = '\\'.and(&Predicate(&|_| true)).try_parse(input)?;
+        let taken = &input.s[..input.s.len() - rest.s.len()];
+
+        Ok((taken, rest))
+    }
+
+    fn unescaped(input: ParseInput<'_>) -> ParseResult<'_, &str> {
+        let (_, rest) = Predicate(&|c| c != '"').try_parse(input)?;
+        let taken = &input.s[..input.s.len() - rest.s.len()];
+
+        Ok((taken, rest))
+    }
+
+    let (s, rest) = '"'
+        .before(&escaped.or(&unescaped).any_amount())
+        .followed_by(&'"')
+        .try_parse(input)?;
+    Ok((Expression::String(s.join("")), rest))
+}
+
 pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
-    none.or(&number).or(&identifier).try_parse(input)
+    string
+        .or(&none)
+        .or(&number)
+        .or(&identifier)
+        .try_parse(input)
 }
