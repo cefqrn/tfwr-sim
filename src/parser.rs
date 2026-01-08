@@ -1,3 +1,6 @@
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_panics_doc)]
+
 #[derive(Debug)]
 pub struct ParseError;
 
@@ -80,6 +83,18 @@ impl<'b, T, U: Fn(&'b str) -> ParseResult<'b, T>> Parser<'b, T> for U {
     }
 }
 
+// Pattern is nightly
+// and Fn(char) -> bool conflicts with above
+struct Predicate<'a>(&'a dyn Fn(char) -> bool);
+impl<'b> Parser<'b, char> for Predicate<'_> {
+    fn try_parse(&self, s: &'b str) -> ParseResult<'b, char> {
+        let c = s.chars().next().ok_or(ParseError)?;
+        self.0(c)
+            .then(|| (c, s.strip_prefix(c).expect("got prefix from string")))
+            .ok_or(ParseError)
+    }
+}
+
 impl Parser<'_, Self> for &str {
     fn try_parse<'a>(&self, s: &'a str) -> ParseResult<'a, Self> {
         s.strip_prefix(*self)
@@ -94,4 +109,50 @@ impl Parser<'_, Self> for char {
             .map(|rest| (*self, rest))
             .ok_or(ParseError)
     }
+}
+
+pub fn space(s: &str) -> ParseResult<'_, char> {
+    ' '.or(&'\t').try_parse(s)
+}
+
+pub fn spaces(s: &str) -> ParseResult<'_, Vec<char>> {
+    space.any_amount().try_parse(s)
+}
+
+#[derive(Debug)]
+pub enum Expression {
+    Number(f64),
+    Identifier(String),
+}
+
+pub fn number(s: &str) -> ParseResult<'_, Expression> {
+    let digit = Predicate(&|c| c.is_ascii_digit());
+
+    let ((whole, fractional), s) = digit
+        .any_amount()
+        .and(&'.'.before(&digit.at_least_one()).maybe())
+        .try_parse(s)?;
+
+    let mut result = whole;
+    if let Some((d, ds)) = fractional {
+        result.push('.');
+        result.push(d);
+        result.extend(ds);
+    } else if result.is_empty() {
+        Err(ParseError)?;
+    }
+    let result = String::from_iter(result).parse().expect("numbers and dot");
+
+    Ok((Expression::Number(result), s))
+}
+
+pub fn identifier(s: &str) -> ParseResult<'_, Expression> {
+    let ((head, tail), s) = Predicate(&|c| c.is_ascii_alphabetic() || c == '_')
+        .and(&Predicate(&|c| c.is_alphanumeric() || c == '_').any_amount())
+        .try_parse(s)?;
+
+    let mut name = vec![head];
+    name.extend(tail);
+
+    Ok((Expression::Identifier(name.into_iter().collect()), s))
 }
