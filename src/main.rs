@@ -63,4 +63,49 @@ fn main() {
                 .into()
         )
     );
+
+    println!("{:?}", parser::expression.try_parse("+  1".into()));
+    println!(
+        "{:?}",
+        parser::expression.try_parse(
+            "-
+            1"
+            .into()
+        )
+    );
+    println!(
+        "{:?}",
+        parser::expression.try_parse(
+            "(+
+
+        1 # comment
+        )"
+            .into()
+        )
+    );
+
+    let (x, _) = parser::expression.try_parse("-5.6".into()).unwrap();
+    println!("{:?}", x.evaluate());
+    let (x, _) = parser::expression.try_parse("+5.6".into()).unwrap();
+    println!("{:?}", x.evaluate());
+
+    println!(
+        "{:?}",
+        parser::expression.try_parse(
+            "pineapple (
+    ) "
+            .into()
+        )
+    );
+
+    println!(
+        "{:?}",
+        parser::expression.try_parse(
+            "-pineapple (
+    ) "
+            .into()
+        )
+    );
+    let (x, _) = parser::expression.try_parse("pineapple()".into()).unwrap();
+    println!("{:?}", x.evaluate());
 }

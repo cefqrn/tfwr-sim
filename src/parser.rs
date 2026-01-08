@@ -275,8 +275,48 @@ pub fn atom(input: ParseInput<'_>) -> ParseResult<'_, Value> {
 }
 
 #[derive(Debug)]
+pub enum UnaryOperation {
+    Pos,
+    Neg,
+    Call,
+}
+
+#[derive(Debug)]
+pub enum Operation {
+    Unary(UnaryOperation, Box<Expression>),
+}
+
+#[derive(Debug)]
 pub enum Expression {
-    Value(Value),
+    Atom(Value),
+    Operation(Operation),
+}
+
+#[derive(Debug)]
+pub struct EvaluationError;
+
+impl Operation {
+    pub fn evaluate(self) -> Result<Value, EvaluationError> {
+        match self {
+            Self::Unary(op, x) => {
+                let x = x.evaluate()?;
+                match (op, x) {
+                    (UnaryOperation::Pos, Value::Number(x)) => Ok(Value::Number(x)),
+                    (UnaryOperation::Neg, Value::Number(x)) => Ok(Value::Number(-x)),
+                    _ => Err(EvaluationError),
+                }
+            }
+        }
+    }
+}
+
+impl Expression {
+    pub fn evaluate(self) -> Result<Value, EvaluationError> {
+        match self {
+            Self::Atom(v) => Ok(v),
+            Self::Operation(op) => op.evaluate(),
+        }
+    }
 }
 
 pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
@@ -304,7 +344,50 @@ pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
         Ok((result, input))
     };
 
-    enclosed
-        .or(&atom.map(&|x| Expression::Value(x)))
-        .try_parse(input)
+    let prefix_unary_operation = |input| {
+        let pos = '+'.followed_by(&whitespace);
+        let pos = pos.before(&expression);
+        let pos = pos.map(&|x| Operation::Unary(UnaryOperation::Pos, Box::new(x)));
+
+        let neg = '-'.followed_by(&whitespace);
+        let neg = neg.before(&expression);
+        let neg = neg.map(&|x| Operation::Unary(UnaryOperation::Neg, Box::new(x)));
+
+        neg.or(&pos)
+            .map(&|x| Expression::Operation(x))
+            .try_parse(input)
+    };
+
+    let postfix_unary_operator = |input| {
+        let (_, input) = whitespace.before(&'(').try_parse(input)?;
+
+        let initially_enclosed = input.enclosed;
+        let input = ParseInput {
+            enclosed: true,
+            ..input
+        };
+
+        let (_, input) = whitespace.try_parse(input)?;
+
+        let input = ParseInput {
+            enclosed: initially_enclosed,
+            ..input
+        };
+
+        let (_, input) = ')'.followed_by(&whitespace).try_parse(input)?;
+
+        Ok((UnaryOperation::Call, input))
+    };
+
+    let (mut result, mut input) = enclosed
+        .or(&prefix_unary_operation)
+        .or(&atom.map(&|x| Expression::Atom(x)))
+        .try_parse(input)?;
+
+    if let Ok((op, rest)) = postfix_unary_operator.try_parse(input) {
+        result = Expression::Operation(Operation::Unary(op, Box::new(result)));
+        input = rest;
+    }
+
+    Ok((result, input))
 }
