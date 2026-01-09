@@ -506,8 +506,16 @@ impl Statement {
     }
 }
 
+pub fn assignable(input: ParseInput<'_>) -> ParseResult<'_, String> {
+    let (name, input) = identifier_string.try_parse(input)?;
+    match name.as_str() {
+        "None" => Err(ParseError),
+        _ => Ok((name, input)),
+    }
+}
+
 pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
-    let assignment = identifier_string
+    let assignment = assignable
         .followed_by(spaces)
         .followed_by('=')
         .followed_by(spaces)

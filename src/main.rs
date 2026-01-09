@@ -154,4 +154,6 @@ d = a * -b + c
         statement.execute(&mut context);
     }
     println!("{context:?}");
+
+    println!("{:?}", parser::statement.try_parse("None = 5".into()));
 }
