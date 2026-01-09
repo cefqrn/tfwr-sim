@@ -9,6 +9,8 @@ pub struct ParseError;
 #[derive(Clone, Copy, Debug)]
 pub struct ParseInput<'a> {
     enclosure_amount: usize,
+    in_global_scope: bool,
+    indentation: &'a str,
     s: &'a str,
 }
 
@@ -16,7 +18,9 @@ impl<'a> From<&'a str> for ParseInput<'a> {
     fn from(value: &'a str) -> Self {
         ParseInput {
             enclosure_amount: 0,
-            s: value,
+            in_global_scope: true,
+            indentation: "",
+            s: value.trim(),
         }
     }
 }
@@ -510,4 +514,40 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
         .and(expression)
         .map(|(name, value)| Statement::Assignment(name, value));
     assignment.try_parse(input)
+}
+
+pub fn block(input: ParseInput<'_>) -> ParseResult<'_, Vec<Statement>> {
+    let (indentation, _) = spaces.try_parse(input)?;
+    let indentation_length = indentation.into_iter().map(char::len_utf8).sum();
+    let indentation = &input.s[..indentation_length];
+
+    // check whether the indentation level increased
+    if !input.in_global_scope
+        && input
+            .indentation
+            .strip_prefix(indentation)
+            .into_iter()
+            .all(str::is_empty)
+    {
+        Err(ParseError)?;
+    }
+
+    let initial_indentation = input.indentation;
+    let input = ParseInput {
+        indentation,
+        ..input
+    };
+
+    let (result, input) = indentation
+        .before(statement)
+        .followed_by(trail)
+        .any_amount()
+        .try_parse(input)?;
+
+    let input = ParseInput {
+        indentation: initial_indentation,
+        ..input
+    };
+
+    Ok((result, input))
 }

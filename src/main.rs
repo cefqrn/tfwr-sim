@@ -134,4 +134,24 @@ fn main() {
     println!("{context:?} {x:?}");
     x.execute(&mut context);
     println!("{context:?}");
+
+    let (x, _) = parser::block
+        .try_parse(
+            "
+a = 5
+b = 6  # pineapple
+
+c = 7
+
+# pizza
+d = a * -b + c
+"
+            .into(),
+        )
+        .unwrap();
+    println!("{context:?} {x:?}");
+    for statement in x {
+        statement.execute(&mut context);
+    }
+    println!("{context:?}");
 }
