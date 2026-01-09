@@ -163,4 +163,36 @@ d = a * -b + c
     let (x, _) = parser::expression.try_parse("-True".into()).unwrap();
     println!("{x:?}");
     println!("{:?}", x.evaluate(&mut context));
+
+    let mut context = Context::new();
+
+    let (x, _) = parser::block
+        .try_parse(
+            "
+if 999:
+
+    asdf = 123
+    if 777:
+
+        qwerty = 567  # pizza
+
+    if 0:
+        ytrewq = 765
+
+if 0:
+    fdsa = 321
+    # pineapple
+    if 555:
+        zxcvbn = 789
+    if 0:
+        nbvcxz = 987
+"
+            .into(),
+        )
+        .unwrap();
+    println!("{context:?} {x:?}");
+    for statement in x {
+        statement.execute(&mut context);
+    }
+    println!("{context:?}");
 }

@@ -360,6 +360,14 @@ impl Value {
             _ => Err(EvaluationError),
         }
     }
+
+    pub fn as_bool(self) -> Result<Self, EvaluationError> {
+        match self {
+            Self::Bool(_) => Ok(self),
+            Self::Number(n) => Ok(Self::Bool(n != 0.)),
+            _ => Ok(Self::Bool(true)),
+        }
+    }
 }
 
 impl Operation {
@@ -524,6 +532,7 @@ pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
 #[derive(Debug)]
 pub enum Statement {
     Assignment(String, Expression),
+    If(Expression, Vec<Statement>),
 }
 
 impl Statement {
@@ -535,6 +544,20 @@ impl Statement {
                     None
                 }
                 Err(e) => Some(e),
+            },
+            Self::If(condition, body) => match condition
+                .evaluate(context)
+                .map(|c| c.as_bool().expect("as_bool shouldn't error"))
+            {
+                Ok(Value::Bool(true)) => {
+                    for s in body {
+                        s.execute(context);
+                    }
+                    None
+                }
+                Ok(Value::Bool(false)) => None,
+                Err(e) => Some(e),
+                Ok(_) => unreachable!(),
             },
         }
     }
@@ -555,7 +578,16 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
         .followed_by(spaces)
         .and(expression)
         .map(|(name, value)| Statement::Assignment(name, value));
-    assignment.try_parse(input)
+
+    let if_ = "if"
+        .before(spaces)
+        .before(expression)
+        .followed_by(':')
+        .followed_by(trail)
+        .and(block)
+        .map(|(condition, body)| Statement::If(condition, body));
+
+    if_.or(assignment).try_parse(input)
 }
 
 pub fn block(input: ParseInput<'_>) -> ParseResult<'_, Vec<Statement>> {
