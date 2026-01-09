@@ -234,6 +234,7 @@ pub enum Value {
     None,
     String(String),
     Number(f64),
+    Bool(bool),
     Function,
 }
 
@@ -275,13 +276,6 @@ pub fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
         .try_parse(input)
 }
 
-pub fn none(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
-    "None"
-        .followed_by(identifier_boundary)
-        .map(|_| Expression::Literal(Value::None))
-        .try_parse(input)
-}
-
 pub fn string(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     let escaped = |input| {
         let (_, rest) = '\\'.and(Predicate(&|_| true)).try_parse(input)?;
@@ -304,8 +298,21 @@ pub fn string(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     Ok((Expression::Literal(Value::String(s.join(""))), rest))
 }
 
+pub fn keyword<T: Copy>(s: &str, parsed_value: T) -> impl Parser<'_, T> {
+    s.followed_by(identifier_boundary)
+        .map(move |_| parsed_value)
+}
+
 pub fn atom(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
-    string.or(none).or(number).or(identifier).try_parse(input)
+    let none = "None".map(|_| Expression::Literal(Value::None));
+    let true_ = "True".map(|_| Expression::Literal(Value::Bool(true)));
+    let false_ = "False".map(|_| Expression::Literal(Value::Bool(false)));
+
+    string
+        .or(none.or(true_).or(false_).followed_by(identifier_boundary))
+        .or(number)
+        .or(identifier)
+        .try_parse(input)
 }
 
 #[derive(Debug)]
@@ -316,11 +323,16 @@ pub enum UnaryOperation {
 }
 
 #[derive(Debug)]
-pub enum BinaryOperation {
+pub enum ArithmeticOperation {
     Add,
     Sub,
     Mul,
     Div,
+}
+
+#[derive(Debug)]
+pub enum BinaryOperation {
+    Arithmetic(ArithmeticOperation),
 }
 
 #[derive(Debug)]
@@ -339,40 +351,54 @@ pub enum Expression {
 #[derive(Debug)]
 pub struct EvaluationError;
 
+impl Value {
+    pub fn as_num(self) -> Result<Self, EvaluationError> {
+        match self {
+            Self::Number(_) => Ok(self),
+            Self::Bool(true) => Ok(Self::Number(1.)),
+            Self::Bool(false) => Ok(Self::Number(0.)),
+            _ => Err(EvaluationError),
+        }
+    }
+}
+
 impl Operation {
     pub fn evaluate(self, context: &mut Context) -> Result<Value, EvaluationError> {
         match self {
             Self::Unary(op, x) => {
                 let x = x.evaluate(context)?;
-                match (op, x) {
-                    (UnaryOperation::Pos, Value::Number(x)) => Ok(Value::Number(x)),
-                    (UnaryOperation::Neg, Value::Number(x)) => Ok(Value::Number(-x)),
-                    _ => Err(EvaluationError),
+                match op {
+                    UnaryOperation::Pos => match x {
+                        Value::Number(_) | Value::Bool(_) => Ok(x),
+                        _ => Err(EvaluationError),
+                    },
+                    UnaryOperation::Neg => match x.as_num()? {
+                        Value::Number(x) => Ok(Value::Number(-x)),
+                        _ => Err(EvaluationError),
+                    },
+                    UnaryOperation::Call => Err(EvaluationError), // TODO
                 }
             }
             Self::Binary(op, x, y) => {
                 let x = x.evaluate(context)?;
 
-                // will need to change for chaining with side effects
-                let y = y.evaluate(context)?;
+                match op {
+                    BinaryOperation::Arithmetic(op) => {
+                        let Value::Number(x) = x.as_num()? else {
+                            panic!("as_num should return a number")
+                        };
+                        let Value::Number(y) = y.evaluate(context)?.as_num()? else {
+                            panic!("as_num should return a number")
+                        };
 
-                match (op, x, y) {
-                    (BinaryOperation::Add, Value::Number(x), Value::Number(y)) => {
-                        Ok(Value::Number(x + y))
+                        match op {
+                            ArithmeticOperation::Add => Ok(Value::Number(x + y)),
+                            ArithmeticOperation::Sub => Ok(Value::Number(x - y)),
+                            ArithmeticOperation::Mul => Ok(Value::Number(x * y)),
+                            ArithmeticOperation::Div if y == 0. => Err(EvaluationError),
+                            ArithmeticOperation::Div => Ok(Value::Number(x / y)),
+                        }
                     }
-                    (BinaryOperation::Sub, Value::Number(x), Value::Number(y)) => {
-                        Ok(Value::Number(x - y))
-                    }
-                    (BinaryOperation::Mul, Value::Number(x), Value::Number(y)) => {
-                        Ok(Value::Number(x * y))
-                    }
-                    (BinaryOperation::Div, Value::Number(_), Value::Number(0.)) => {
-                        Err(EvaluationError)
-                    }
-                    (BinaryOperation::Div, Value::Number(x), Value::Number(y)) => {
-                        Ok(Value::Number(x / y))
-                    }
-                    _ => Err(EvaluationError),
                 }
             }
         }
@@ -443,8 +469,8 @@ pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     };
 
     let mul_div = |input| {
-        let mul = '*'.map(|_| BinaryOperation::Mul);
-        let div = '/'.map(|_| BinaryOperation::Div);
+        let mul = '*'.map(|_| ArithmeticOperation::Mul);
+        let div = '/'.map(|_| ArithmeticOperation::Div);
 
         let ((initial_term, terms), input) = pos_neg
             .and(
@@ -457,15 +483,19 @@ pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
             .try_parse(input)?;
 
         let result = terms.into_iter().fold(initial_term, |acc, (op, term)| {
-            Expression::Operation(Operation::Binary(op, Box::new(acc), Box::new(term)))
+            Expression::Operation(Operation::Binary(
+                BinaryOperation::Arithmetic(op),
+                Box::new(acc),
+                Box::new(term),
+            ))
         });
 
         Ok((result, input))
     };
 
     let add_sub = |input| {
-        let add = '+'.map(|_| BinaryOperation::Add);
-        let sub = '-'.map(|_| BinaryOperation::Sub);
+        let add = '+'.map(|_| ArithmeticOperation::Add);
+        let sub = '-'.map(|_| ArithmeticOperation::Sub);
 
         let ((initial_term, terms), input) = mul_div
             .and(
@@ -478,7 +508,11 @@ pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
             .try_parse(input)?;
 
         let result = terms.into_iter().fold(initial_term, |acc, (op, term)| {
-            Expression::Operation(Operation::Binary(op, Box::new(acc), Box::new(term)))
+            Expression::Operation(Operation::Binary(
+                BinaryOperation::Arithmetic(op),
+                Box::new(acc),
+                Box::new(term),
+            ))
         });
 
         Ok((result, input))
@@ -509,7 +543,7 @@ impl Statement {
 pub fn assignable(input: ParseInput<'_>) -> ParseResult<'_, String> {
     let (name, input) = identifier_string.try_parse(input)?;
     match name.as_str() {
-        "None" => Err(ParseError),
+        "None" | "True" | "False" => Err(ParseError),
         _ => Ok((name, input)),
     }
 }

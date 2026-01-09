@@ -156,4 +156,11 @@ d = a * -b + c
     println!("{context:?}");
 
     println!("{:?}", parser::statement.try_parse("None = 5".into()));
+
+    let (x, _) = parser::expression.try_parse("+True".into()).unwrap();
+    println!("{x:?}");
+    println!("{:?}", x.evaluate(&mut context));
+    let (x, _) = parser::expression.try_parse("-True".into()).unwrap();
+    println!("{x:?}");
+    println!("{:?}", x.evaluate(&mut context));
 }
