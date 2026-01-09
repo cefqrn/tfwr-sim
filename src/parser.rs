@@ -532,7 +532,7 @@ pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
 #[derive(Debug)]
 pub enum Statement {
     Assignment(String, Expression),
-    If(Expression, Vec<Statement>),
+    If(Vec<(Expression, Vec<Statement>)>, Vec<Statement>),
 }
 
 impl Statement {
@@ -545,20 +545,31 @@ impl Statement {
                 }
                 Err(e) => Some(e),
             },
-            Self::If(condition, body) => match condition
-                .evaluate(context)
-                .map(|c| c.as_bool().expect("as_bool shouldn't error"))
-            {
-                Ok(Value::Bool(true)) => {
-                    for s in body {
-                        s.execute(context);
+            Self::If(possibilities, else_) => {
+                for (condition, body) in possibilities {
+                    let condition = match condition
+                        .evaluate(context)
+                        .map(|c| c.as_bool().expect("as_bool shouldn't error"))
+                    {
+                        Ok(Value::Bool(condition)) => condition,
+                        Ok(_) => unreachable!(),
+                        Err(e) => return Some(e),
+                    };
+
+                    if condition {
+                        for s in body {
+                            s.execute(context);
+                        }
+                        return None;
                     }
-                    None
                 }
-                Ok(Value::Bool(false)) => None,
-                Err(e) => Some(e),
-                Ok(_) => unreachable!(),
-            },
+
+                for s in else_ {
+                    s.execute(context);
+                }
+
+                None
+            }
         }
     }
 }
@@ -582,10 +593,34 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
     let if_ = "if"
         .before(spaces)
         .before(expression)
+        .followed_by(spaces)
         .followed_by(':')
         .followed_by(trail)
         .and(block)
-        .map(|(condition, body)| Statement::If(condition, body));
+        .and(
+            "elif"
+                .before(spaces)
+                .before(expression)
+                .followed_by(spaces)
+                .followed_by(':')
+                .followed_by(trail)
+                .and(block)
+                .any_amount(),
+        )
+        .and(
+            "else"
+                .before(spaces)
+                .before(':')
+                .before(trail)
+                .before(block)
+                .maybe(),
+        )
+        .map(|((initial, elifs), else_)| {
+            let mut possibilities = vec![initial];
+            possibilities.extend(elifs);
+
+            Statement::If(possibilities, else_.unwrap_or_else(Vec::new))
+        });
 
     if_.or(assignment).try_parse(input)
 }

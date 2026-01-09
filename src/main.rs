@@ -165,7 +165,6 @@ d = a * -b + c
     println!("{:?}", x.evaluate(&mut context));
 
     let mut context = Context::new();
-
     let (x, _) = parser::block
         .try_parse(
             "
@@ -186,6 +185,55 @@ if 0:
         zxcvbn = 789
     if 0:
         nbvcxz = 987
+"
+            .into(),
+        )
+        .unwrap();
+    println!("{context:?} {x:?}");
+    for statement in x {
+        statement.execute(&mut context);
+    }
+    println!("{context:?}");
+
+    let mut context = Context::new();
+    let (x, _) = parser::block
+        .try_parse(
+            "
+if True:
+    x = 5
+elif True:
+    x = 6
+elif True:
+    x = 7
+else:
+    x = 8
+
+if False:
+    y = 5
+elif True:
+    y = 6
+elif True:
+    y = 7
+else:
+    y = 8
+
+if False:
+    z = 5
+elif False:
+    z = 6
+elif True:
+    z = 7
+else:
+    z = 8
+
+if False:
+    w = 5
+elif False:
+    w = 6
+elif False:
+    w = 7
+else:
+    w = 8
 "
             .into(),
         )
