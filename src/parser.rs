@@ -9,18 +9,20 @@ pub struct ParseError;
 #[derive(Clone, Copy, Debug)]
 pub struct ParseInput<'a> {
     enclosure_amount: usize,
-    in_global_scope: bool,
+    indentation_level: usize,
     indentation: &'a str,
     s: &'a str,
+    fully_consumed: bool,
 }
 
 impl<'a> From<&'a str> for ParseInput<'a> {
     fn from(value: &'a str) -> Self {
         ParseInput {
             enclosure_amount: 0,
-            in_global_scope: true,
+            indentation_level: 0,
             indentation: "",
             s: value.trim(),
+            fully_consumed: false,
         }
     }
 }
@@ -115,6 +117,10 @@ where
             Err(e) => Err(e),
         }
     }
+
+    fn ignore(self) -> impl Parser<'a, ()> {
+        self.map(|_| ())
+    }
 }
 
 impl<'b, T, U: Fn(ParseInput<'b>) -> ParseResult<'b, T>> Parser<'b, T> for U {
@@ -178,22 +184,40 @@ pub fn comment(input: ParseInput<'_>) -> ParseResult<'_, Vec<char>> {
         .try_parse(input)
 }
 
-pub fn trail(input: ParseInput<'_>) -> ParseResult<'_, Vec<Option<Vec<char>>>> {
+pub fn end_of_line(input: ParseInput<'_>) -> ParseResult<'_, ()> {
     spaces
-        .before(comment.maybe().followed_by(newline))
-        .any_amount()
+        .ignore()
+        .followed_by(comment.maybe())
+        .followed_by(newline.ignore().or(eof))
         .try_parse(input)
 }
 
-pub fn whitespace(input: ParseInput<'_>) -> ParseResult<'_, Vec<Option<Vec<char>>>> {
+pub fn up_to_next_statement(input: ParseInput<'_>) -> ParseResult<'_, ()> {
+    end_of_line.at_least_one().ignore().try_parse(input)
+}
+
+pub fn whitespace(input: ParseInput<'_>) -> ParseResult<'_, ()> {
     if input.enclosure_amount > 0 {
-        trail.followed_by(spaces).try_parse(input)
+        end_of_line
+            .any_amount()
+            .ignore()
+            .followed_by(spaces)
+            .try_parse(input)
     } else {
-        spaces.map(|_| Vec::new()).try_parse(input)
+        spaces.ignore().try_parse(input)
     }
 }
 
 pub fn eof(input: ParseInput<'_>) -> ParseResult<'_, ()> {
+    if input.fully_consumed {
+        Err(ParseError)?;
+    }
+
+    let input = ParseInput {
+        fully_consumed: true,
+        ..input
+    };
+
     input.s.is_empty().then_some(((), input)).ok_or(ParseError)
 }
 
@@ -590,12 +614,14 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
         .and(expression)
         .map(|(name, value)| Statement::Assignment(name, value));
 
+    let single_line = assignment.followed_by(up_to_next_statement);
+
     let if_ = "if"
         .before(spaces)
         .before(expression)
         .followed_by(spaces)
         .followed_by(':')
-        .followed_by(trail)
+        .followed_by(up_to_next_statement)
         .and(block)
         .and(
             "elif"
@@ -603,7 +629,7 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
                 .before(expression)
                 .followed_by(spaces)
                 .followed_by(':')
-                .followed_by(trail)
+                .followed_by(up_to_next_statement)
                 .and(block)
                 .any_amount(),
         )
@@ -611,7 +637,7 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
             "else"
                 .before(spaces)
                 .before(':')
-                .before(trail)
+                .followed_by(up_to_next_statement)
                 .before(block)
                 .maybe(),
         )
@@ -622,39 +648,44 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
             Statement::If(possibilities, else_.unwrap_or_else(Vec::new))
         });
 
-    if_.or(assignment).try_parse(input)
+    let multi_line = if_;
+
+    input
+        .indentation
+        .before(multi_line.or(single_line))
+        .try_parse(input)
 }
 
 pub fn block(input: ParseInput<'_>) -> ParseResult<'_, Vec<Statement>> {
+    // look ahead to get current indentation
     let (indentation, _) = spaces.try_parse(input)?;
     let indentation_length = indentation.into_iter().map(char::len_utf8).sum();
     let indentation = &input.s[..indentation_length];
 
-    // check whether the indentation level increased
-    if !input.in_global_scope
-        && input
-            .indentation
-            .strip_prefix(indentation)
+    // if not on the global level, ensure indentation increased and is consistent
+    if input.indentation_level > 0
+        && indentation
+            .strip_prefix(input.indentation)
             .into_iter()
             .all(str::is_empty)
     {
         Err(ParseError)?;
     }
 
+    // set indentation
     let initial_indentation = input.indentation;
     let input = ParseInput {
         indentation,
+        indentation_level: input.indentation_level + 1,
         ..input
     };
 
-    let (result, input) = indentation
-        .before(statement)
-        .followed_by(trail)
-        .any_amount()
-        .try_parse(input)?;
+    let (result, input) = statement.any_amount().try_parse(input)?;
 
+    // reset indentation
     let input = ParseInput {
         indentation: initial_indentation,
+        indentation_level: input.indentation_level - 1,
         ..input
     };
 

@@ -243,4 +243,6 @@ else:
         statement.execute(&mut context);
     }
     println!("{context:?}");
+
+    println!("{:?}", parser::block.try_parse("x = 1 y = 2".into()));
 }
