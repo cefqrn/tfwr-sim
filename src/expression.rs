@@ -139,8 +139,8 @@ impl Operation {
 
 pub fn parse(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     let pos_neg = |input| {
-        let pos = '+'.map(|_| UnaryOperation::Pos);
-        let neg = '-'.map(|_| UnaryOperation::Neg);
+        let pos = '+'.map_to(UnaryOperation::Pos);
+        let neg = '-'.map_to(UnaryOperation::Neg);
 
         let (ops, input) = neg
             .or(pos)

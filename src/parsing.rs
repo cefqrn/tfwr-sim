@@ -222,7 +222,7 @@ pub fn identifier_boundary(input: ParseInput<'_>) -> ParseResult<'_, ()> {
     nothing
         .lookahead(
             Predicate(&|c| !c.is_alphanumeric() && c != '_')
-                .map(|_| ())
+                .ignore()
                 .or(eof),
         )
         .try_parse(input)
