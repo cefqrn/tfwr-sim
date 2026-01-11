@@ -263,8 +263,13 @@ pub fn identifier_string(input: ParseInput<'_>) -> ParseResult<'_, String> {
     Ok((name.into_iter().collect(), input))
 }
 
+// TODO: better way to declare keywords
 pub fn assignable(input: ParseInput<'_>) -> ParseResult<'_, String> {
     let (name, input) = identifier_string.try_parse(input)?;
+
+    if name == "global" {
+        Err(ParseError)?;
+    }
 
     // can't assign to a keyword
     value::parse(name.as_str().into())

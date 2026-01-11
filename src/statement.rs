@@ -6,11 +6,21 @@ use evaluation::{Context, EvaluationError};
 use expression::Expression;
 use parsing::{ParseError, ParseInput, ParseResult, Parser};
 
+use std::collections::HashSet;
+use std::collections::VecDeque;
+
 #[derive(Clone, Debug)]
 pub enum Statement {
     Assignment(String, Expression),
     If(Vec<(Expression, Vec<Statement>)>, Vec<Statement>),
-    Def(String, Vec<String>, Vec<Statement>),
+    Def(
+        String,
+        Vec<String>,
+        Vec<Statement>,
+        HashSet<String>,
+        HashSet<String>,
+    ),
+    Global(String),
 }
 
 impl Statement {
@@ -48,11 +58,24 @@ impl Statement {
 
                 None
             }
-            Self::Def(name, parameters, body) => {
-                let value = Value::Function(parameters, body);
+            Self::Def(name, parameters, body, local, captured) => {
+                let mut new_context = Context::new();
+                for name in &parameters {
+                    evaluation::declare(&mut new_context, name.to_owned());
+                }
+                for name in local {
+                    evaluation::declare(&mut new_context, name);
+                }
+                for name in captured {
+                    let captured_variable = evaluation::capture(context, &name);
+                    evaluation::add(&mut new_context, name, captured_variable);
+                }
+
+                let value = Value::Function(parameters, body, new_context);
                 evaluation::assign(context, &name, value);
                 None
             }
+            Self::Global(_) => None,
         }
     }
 }
@@ -65,7 +88,14 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
         .and(expression::parse)
         .map(|(name, value)| Statement::Assignment(name, value));
 
-    let single_line = assignment.followed_by(parsing::up_to_next_statement);
+    let global = "global"
+        .before(parsing::spaces)
+        .before(parsing::assignable)
+        .map(Statement::Global);
+
+    let single_line = assignment
+        .or(global)
+        .followed_by(parsing::up_to_next_statement);
 
     let if_ = "if"
         .before(parsing::spaces)
@@ -116,7 +146,42 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
         .followed_by(':')
         .followed_by(parsing::up_to_next_statement)
         .and(block)
-        .map(|((name, params), body)| Statement::Def(name, params, body));
+        .map(|((name, params), body)| {
+            let mut captured = HashSet::new();
+            let mut local = HashSet::new();
+            local.extend(params.iter().cloned());
+
+            let mut left = body.iter().collect::<VecDeque<_>>();
+            while let Some(s) = left.pop_front() {
+                match s {
+                    Statement::Assignment(name, _) | Statement::Def(name, _, _, _, _) => {
+                        if !captured.contains(name) {
+                            local.insert(name.clone());
+                        }
+                    }
+                    Statement::Global(name) => {
+                        // TODO: don't panic
+                        assert!(!local.contains(name), "assignment before global");
+
+                        captured.insert(name.clone());
+                    }
+                    Statement::If(possibilities, else_) => {
+                        for (_, body) in possibilities {
+                            left.extend(body);
+                        }
+                        left.extend(else_);
+                    }
+                }
+            }
+
+            captured.extend(
+                evaluation::referred_to_in(&body)
+                    .difference(&local.iter().map(String::as_str).collect())
+                    .map(|x| (*x).to_string()),
+            );
+
+            Statement::Def(name, params, body, local, captured)
+        });
 
     let multi_line = if_.or(function);
 

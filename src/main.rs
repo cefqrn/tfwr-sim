@@ -280,4 +280,33 @@ n = 5
     }
     println!("{context:?}");
 
+    let ((context, x), _) = statement::module
+        .try_parse(
+            "
+def f():
+    global a
+    a = 5"
+                .into(),
+        )
+        .unwrap();
+    println!("{context:?} {x:?}");
+
+    let ((context, x), _) = statement::module
+        .try_parse(
+            "
+def f():
+    global a
+    global b
+    if b - 55:
+        c = a
+        a = b
+        b = c
+
+a = 0
+b = 1
+    "
+            .into(),
+        )
+        .unwrap();
+    println!("{context:?} {x:?}");
 }

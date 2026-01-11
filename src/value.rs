@@ -1,4 +1,4 @@
-use crate::evaluation::EvaluationError;
+use crate::evaluation::{Context, EvaluationError};
 use crate::parsing;
 use parsing::{ParseError, ParseInput, ParseResult, Parser, Predicate};
 
@@ -8,7 +8,7 @@ pub enum Value {
     String(String),
     Number(f64),
     Bool(bool),
-    Function(Vec<String>, Vec<crate::statement::Statement>),
+    Function(Vec<String>, Vec<crate::statement::Statement>, Context),
 }
 
 impl Value {

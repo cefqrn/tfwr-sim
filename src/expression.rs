@@ -42,10 +42,10 @@ impl Expression {
         match self {
             Self::Literal(v) => Ok(v),
             Self::Operation(op) => op.evaluate(context),
-            Self::Identifier(n) => match context.get(&n) {
-                None => Err(EvaluationError), // variable does not exist
-                Some((v, _)) => v.borrow().clone().ok_or(EvaluationError),
-            },
+            Self::Identifier(n) => context.get(&n).map_or_else(
+                || Err(EvaluationError),
+                |v| v.borrow().clone().ok_or(EvaluationError),
+            ),
         }
     }
 }
