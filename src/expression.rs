@@ -74,26 +74,26 @@ impl Expression {
                 |v| v.borrow().clone().ok_or(EvaluationError),
             ),
             Self::Call(Call(f, args)) => {
-                let Value::Function(parameters, body, mut base_context, locals) =
-                    f.evaluate(context)?
-                else {
+                let Value::Function(f) = f.evaluate(context)? else {
                     return Err(EvaluationError);
                 };
 
-                if args.len() != parameters.len() {
+                if args.len() != f.parameters.len() {
                     return Err(EvaluationError);
                 }
 
-                for name in locals {
-                    evaluation::declare(&mut base_context, name);
+                let mut new_context = f.captured.clone();
+
+                for name in f.locals.iter().cloned() {
+                    evaluation::declare(&mut new_context, name);
                 }
 
-                for (name, arg) in parameters.iter().zip(&args) {
-                    evaluation::assign(&mut base_context, name, arg.clone().evaluate(context)?);
+                for (name, arg) in f.parameters.iter().zip(args.into_iter()) {
+                    evaluation::assign(&mut new_context, name, arg.evaluate(context)?);
                 }
 
-                for s in body {
-                    s.execute(&mut base_context);
+                for s in f.body.iter().cloned() {
+                    s.execute(&mut new_context);
                 }
 
                 Ok(Value::None)

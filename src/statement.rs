@@ -1,13 +1,14 @@
 use crate::evaluation;
 use crate::expression;
 use crate::parsing;
-use crate::value::Value;
+use crate::value::{Closure, Value};
 use evaluation::{Context, EvaluationError};
 use expression::Expression;
 use parsing::{ParseError, ParseInput, ParseResult, Parser};
 
 use std::collections::HashSet;
 use std::collections::VecDeque;
+use std::rc::Rc;
 
 #[derive(Clone, Debug)]
 pub enum Statement {
@@ -54,14 +55,19 @@ impl Statement {
 
                 None
             }
-            Self::Def(name, parameters, body, local, captured) => {
+            Self::Def(name, parameters, body, locals, captured) => {
                 let mut new_context = Context::new();
                 for name in captured {
                     let captured_variable = evaluation::capture(context, &name);
                     evaluation::add(&mut new_context, name, captured_variable);
                 }
 
-                let value = Value::Function(parameters, body, new_context, local);
+                let value = Value::Function(Rc::new(Closure {
+                    parameters,
+                    body,
+                    captured: new_context,
+                    locals,
+                }));
                 evaluation::assign(context, &name, value);
                 None
             }

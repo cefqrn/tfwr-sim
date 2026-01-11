@@ -1,8 +1,11 @@
 use crate::evaluation::{Context, EvaluationError};
 use crate::parsing;
+use crate::statement::Statement;
 use parsing::{ParseError, ParseInput, ParseResult, Parser, Predicate};
 
+use std::cmp::Ordering;
 use std::collections::HashSet;
+use std::rc::Rc;
 
 #[derive(Clone, Debug)]
 pub enum Value {
@@ -10,12 +13,15 @@ pub enum Value {
     String(String),
     Number(f64),
     Bool(bool),
-    Function(
-        Vec<String>,
-        Vec<crate::statement::Statement>,
-        Context,
-        HashSet<String>,
-    ),
+    Function(Rc<Closure>),
+}
+
+#[derive(Clone, Debug)]
+pub struct Closure {
+    pub parameters: Vec<String>,
+    pub body: Vec<Statement>,
+    pub captured: Context,
+    pub locals: HashSet<String>,
 }
 
 impl From<Value> for bool {
@@ -71,7 +77,7 @@ impl PartialEq for Value {
             (Self::Number(_) | Self::Bool(_), Self::Number(_) | Self::Bool(_)) => {
                 f64::try_from(self).expect("checked") == f64::try_from(other).expect("checked")
             }
-            (Self::Function(_, _, _, _), Self::Function(_, _, _, _)) => todo!(),
+            (Self::Function(a), Self::Function(b)) => Rc::ptr_eq(a, b),
             _ => false,
         }
     }
@@ -80,7 +86,7 @@ impl PartialEq for Value {
 impl Eq for Value {}
 
 impl PartialOrd for Value {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             (Self::String(l0), Self::String(r0)) => l0.partial_cmp(r0),
             (Self::Number(_) | Self::Bool(_), Self::Number(_) | Self::Bool(_)) => {
@@ -88,7 +94,7 @@ impl PartialOrd for Value {
                     .expect("checked")
                     .partial_cmp(&f64::try_from(other).expect("checked"))
             }
-            (Self::Function(_, _, _, _), Self::Function(_, _, _, _)) => todo!(),
+            (Self::Function(a), Self::Function(b)) => Rc::ptr_eq(a, b).then_some(Ordering::Equal),
             _ => None,
         }
     }

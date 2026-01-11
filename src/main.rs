@@ -451,4 +451,32 @@ b = \"pineapple\" != \"pizza\""
         s.execute(&mut context);
     }
     println!("{context:?}");
+
+    let ((mut context, x), _) = statement::module(
+        "
+def f():
+    _ = 1
+
+def g():
+    _ = 1
+
+k = f
+a = k == f
+b = f == g
+c = f != f
+d = f != g"
+            .into(),
+    )
+    .unwrap();
+    println!("{context:?} {x:?}");
+    for s in x {
+        assert!(s.execute(&mut context).is_none(), "no error");
+    }
+    println!(
+        "{:?} {:?} {:?} {:?}",
+        context.get("a"),
+        context.get("b"),
+        context.get("c"),
+        context.get("d")
+    );
 }
