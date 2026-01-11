@@ -1,4 +1,4 @@
-use crate::expression::{Expression, Operation};
+use crate::expression::{Call, Expression, Operation};
 use crate::statement::Statement;
 use crate::value::Value;
 
@@ -57,6 +57,7 @@ pub fn assigned_to_in(statements: &[Statement]) -> HashSet<&str> {
     result
 }
 
+#[must_use]
 fn identifiers_in(expression: &Expression) -> HashSet<&str> {
     let mut result = HashSet::new();
     match expression {
@@ -71,6 +72,12 @@ fn identifiers_in(expression: &Expression) -> HashSet<&str> {
             result.extend(identifiers_in(x));
             result.extend(identifiers_in(y));
         }
+        Expression::Call(Call(called, args)) => {
+            result.extend(identifiers_in(called));
+            for arg in args {
+                result.extend(identifiers_in(arg));
+            }
+        }
     }
 
     result
@@ -82,7 +89,7 @@ pub fn referred_to_in(statements: &[Statement]) -> HashSet<&str> {
     for s in statements {
         match s {
             Statement::Assignment(_, value) => {
-                identifiers_in(value);
+                result.extend(identifiers_in(value));
             }
             Statement::Def(_, _, body, local, _) => {
                 result.extend(

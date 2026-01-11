@@ -291,22 +291,49 @@ def f():
         .unwrap();
     println!("{context:?} {x:?}");
 
-    let ((context, x), _) = statement::module
+    let ((mut context, x), _) = statement::module
         .try_parse(
             "
 def f():
     global a
     global b
-    if b - 55:
+    if b - 144:
         c = a
         a = b
-        b = c
+        b = c + b
+        _ = f()
 
 a = 0
 b = 1
+_ = f()
     "
             .into(),
         )
         .unwrap();
     println!("{context:?} {x:?}");
+    for s in x {
+        s.execute(&mut context);
+    }
+    println!("{:?} {:?}", context.get("a"), context.get("b"));
+
+    let ((mut context, x), _) = statement::module
+        .try_parse(
+            "
+def f(a, b):
+    global result
+    if b - 144:
+        _ = f(b, a+b)
+    else:
+        result = a+b
+
+_ = f(0, 1)
+    "
+            .into(),
+        )
+        .unwrap();
+    println!("{context:?} {x:?}");
+    for s in x {
+        s.execute(&mut context);
+    }
+    println!("{:?}", context.get("result"));
 }

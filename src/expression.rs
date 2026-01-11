@@ -1,6 +1,7 @@
-use crate::evaluation::{Context, EvaluationError};
+use crate::evaluation;
 use crate::parsing;
 use crate::value;
+use evaluation::{Context, EvaluationError};
 use parsing::{ParseInput, ParseResult, Parser};
 use value::Value;
 
@@ -9,7 +10,11 @@ pub enum Expression {
     Literal(Value),
     Identifier(String),
     Operation(Operation),
+    Call(Call),
 }
+
+#[derive(Clone, Debug)]
+pub struct Call(pub Box<Expression>, pub Vec<Expression>);
 
 #[derive(Clone, Debug)]
 pub enum Operation {
@@ -21,7 +26,6 @@ pub enum Operation {
 pub enum UnaryOperation {
     Pos,
     Neg,
-    Call,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -46,6 +50,31 @@ impl Expression {
                 || Err(EvaluationError),
                 |v| v.borrow().clone().ok_or(EvaluationError),
             ),
+            Self::Call(Call(f, args)) => {
+                let Value::Function(parameters, body, mut base_context, locals) =
+                    f.evaluate(context)?
+                else {
+                    return Err(EvaluationError);
+                };
+
+                if args.len() != parameters.len() {
+                    return Err(EvaluationError);
+                }
+
+                for name in locals {
+                    evaluation::declare(&mut base_context, name);
+                }
+
+                for (name, arg) in parameters.iter().zip(&args) {
+                    evaluation::assign(&mut base_context, name, arg.clone().evaluate(context)?);
+                }
+
+                for s in body {
+                    s.execute(&mut base_context);
+                }
+
+                Ok(Value::None)
+            }
         }
     }
 }
@@ -64,7 +93,6 @@ impl Operation {
                         Value::Number(x) => Ok(Value::Number(-x)),
                         _ => Err(EvaluationError),
                     },
-                    UnaryOperation::Call => Err(EvaluationError), // TODO
                 }
             }
             Self::Binary(op, x, y) => {
@@ -185,11 +213,16 @@ fn atom(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
         .try_parse(input)
 }
 
-fn args(input: ParseInput<'_>) -> ParseResult<'_, UnaryOperation> {
+fn args(input: ParseInput<'_>) -> ParseResult<'_, Vec<Expression>> {
     parsing::open_paren
+        .before(
+            parsing::whitespace
+                .before(parse)
+                .followed_by(parsing::whitespace.before(',').maybe())
+                .any_amount(),
+        )
         .followed_by(parsing::whitespace)
         .followed_by(parsing::close_paren)
-        .map_to(UnaryOperation::Call)
         .try_parse(input)
 }
 
@@ -200,8 +233,8 @@ fn call(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
         .any_amount()
         .try_parse(input)?;
 
-    let result = calls.into_iter().fold(result, |acc, call| {
-        Expression::Operation(Operation::Unary(call, Box::new(acc)))
+    let result = calls.into_iter().fold(result, |acc, args| {
+        Expression::Call(Call(Box::new(acc), args))
     });
 
     Ok((result, input))

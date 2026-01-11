@@ -60,18 +60,12 @@ impl Statement {
             }
             Self::Def(name, parameters, body, local, captured) => {
                 let mut new_context = Context::new();
-                for name in &parameters {
-                    evaluation::declare(&mut new_context, name.to_owned());
-                }
-                for name in local {
-                    evaluation::declare(&mut new_context, name);
-                }
                 for name in captured {
                     let captured_variable = evaluation::capture(context, &name);
                     evaluation::add(&mut new_context, name, captured_variable);
                 }
 
-                let value = Value::Function(parameters, body, new_context);
+                let value = Value::Function(parameters, body, new_context, local);
                 evaluation::assign(context, &name, value);
                 None
             }
@@ -105,7 +99,9 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
         .followed_by(parsing::up_to_next_statement)
         .and(block)
         .and(
-            "elif"
+            input
+                .indentation
+                .before("elif")
                 .before(parsing::spaces)
                 .before(expression::parse)
                 .followed_by(parsing::spaces)
@@ -115,7 +111,9 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
                 .any_amount(),
         )
         .and(
-            "else"
+            input
+                .indentation
+                .before("else")
                 .before(parsing::spaces)
                 .before(':')
                 .followed_by(parsing::up_to_next_statement)
@@ -174,11 +172,14 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
                 }
             }
 
-            captured.extend(
-                evaluation::referred_to_in(&body)
-                    .difference(&local.iter().map(String::as_str).collect())
-                    .map(|x| (*x).to_string()),
-            );
+            let mut extra_captured = evaluation::referred_to_in(&body);
+            for x in &evaluation::assigned_to_in(&body) {
+                extra_captured.remove(x);
+            }
+            for x in &params {
+                extra_captured.remove(x.as_str());
+            }
+            captured.extend(extra_captured.iter().map(|x| (*x).to_string()));
 
             Statement::Def(name, params, body, local, captured)
         });

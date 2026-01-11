@@ -2,13 +2,20 @@ use crate::evaluation::{Context, EvaluationError};
 use crate::parsing;
 use parsing::{ParseError, ParseInput, ParseResult, Parser, Predicate};
 
+use std::collections::HashSet;
+
 #[derive(Clone, Debug)]
 pub enum Value {
     None,
     String(String),
     Number(f64),
     Bool(bool),
-    Function(Vec<String>, Vec<crate::statement::Statement>, Context),
+    Function(
+        Vec<String>,
+        Vec<crate::statement::Statement>,
+        Context,
+        HashSet<String>,
+    ),
 }
 
 impl Value {
