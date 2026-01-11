@@ -336,4 +336,25 @@ _ = f(0, 1)
         s.execute(&mut context);
     }
     println!("{:?}", context.get("result"));
+
+    let ((mut context, x), _) = statement::module
+        .try_parse(
+            "
+def f():
+    if False:
+        global x
+    x = 6
+
+x = 5
+_ = f()
+# quick_print(x)  # 6
+    "
+            .into(),
+        )
+        .unwrap();
+    println!("{context:?} {x:?}");
+    for s in x {
+        s.execute(&mut context);
+    }
+    println!("{:?}", context.get("x"));
 }

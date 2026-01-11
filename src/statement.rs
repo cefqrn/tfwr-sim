@@ -164,10 +164,14 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
                         captured.insert(name.clone());
                     }
                     Statement::If(possibilities, else_) => {
-                        for (_, body) in possibilities {
-                            left.extend(body);
+                        for s in else_.iter().rev() {
+                            left.push_front(s);
                         }
-                        left.extend(else_);
+                        for (_, body) in possibilities.iter().rev() {
+                            for s in body.iter().rev() {
+                                left.push_front(s);
+                            }
+                        }
                     }
                 }
             }
