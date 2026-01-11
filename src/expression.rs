@@ -44,7 +44,7 @@ impl Expression {
             Self::Operation(op) => op.evaluate(context),
             Self::Identifier(n) => match context.get(&n) {
                 None => Err(EvaluationError), // variable does not exist
-                Some((v, _)) => v.clone().ok_or(EvaluationError),
+                Some((v, _)) => v.borrow().clone().ok_or(EvaluationError),
             },
         }
     }

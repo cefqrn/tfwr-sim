@@ -89,10 +89,8 @@ fn main() {
     );
 
     let mut context = Context::new();
-    context.insert(
-        "pineapple".to_owned(),
-        (Some(Value::Number(123.)), Vec::new()),
-    );
+    evaluation::declare(&mut context, "pineapple".to_owned());
+    evaluation::assign(&mut context, "pineapple", Value::Number(123.));
 
     let (x, _) = expression::parse.try_parse("-5.6".into()).unwrap();
     println!("{:?}", x.evaluate(&mut context));
@@ -269,4 +267,17 @@ n = 5
         s.execute(&mut context);
     }
     println!("{context:?}");
+
+    let ((mut context, x), _) = statement::module.try_parse("x = x + 1".into()).unwrap();
+    evaluation::assign(&mut context, "x", Value::Number(1.));
+    println!("{context:?} {x:?}");
+    for s in x.clone() {
+        s.execute(&mut context);
+    }
+    println!("{context:?}");
+    for s in x {
+        s.execute(&mut context);
+    }
+    println!("{context:?}");
+
 }

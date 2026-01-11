@@ -2,25 +2,27 @@ use crate::statement::Statement;
 use crate::value::Value;
 
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Debug)]
 pub struct EvaluationError;
 
-pub type Variable = Option<Value>;
+pub type Variable = Rc<RefCell<Option<Value>>>;
 pub type Context = HashMap<String, (Variable, Vec<Variable>)>;
 
 pub fn declare(context: &mut Context, name: String) {
-    context.insert(name, (None, Vec::new()));
+    context.insert(name, (Rc::new(RefCell::new(None)), Vec::new()));
 }
 
 pub fn declare_locally(context: &mut Context, name: &str) {
     let (top, stack) = context.get_mut(name).expect("already added to context");
-    stack.push(top.take());
+    stack.push(std::mem::replace(top, Rc::new(RefCell::new(None))));
 }
 
 pub fn assign(context: &mut Context, name: &str, value: Value) {
     let (top, _) = context.get_mut(name).expect("already added to context");
-    top.replace(value);
+    top.replace(Some(value));
 }
 
 #[must_use]

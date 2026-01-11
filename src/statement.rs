@@ -167,7 +167,7 @@ pub fn module(input: ParseInput<'_>) -> ParseResult<'_, (Context, Vec<Statement>
 
     let mut context = Context::new();
     for var in evaluation::assigned_to_in(&result) {
-        context.insert(var.to_owned(), (None, Vec::new()));
+        evaluation::declare(&mut context, var.to_owned());
     }
 
     Ok(((context, result), input))
