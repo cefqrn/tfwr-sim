@@ -78,6 +78,7 @@ fn identifiers_in(expression: &Expression) -> HashSet<&str> {
                 result.extend(identifiers_in(arg));
             }
         }
+        Expression::Tuple(elements) => result.extend(elements.iter().flat_map(identifiers_in)),
     }
 
     result

@@ -12,6 +12,7 @@ pub enum Expression {
     Literal(Value),
     Identifier(String),
     Operation(Operation),
+    Tuple(Vec<Expression>),
     Call(Call),
 }
 
@@ -98,6 +99,12 @@ impl Expression {
 
                 Ok(Value::None)
             }
+            Self::Tuple(elements) => Ok(Value::Tuple(
+                elements
+                    .into_iter()
+                    .map(|e| e.evaluate(context))
+                    .collect::<Result<Vec<Value>, EvaluationError>>()?,
+            )),
         }
     }
 }
@@ -191,6 +198,28 @@ impl Operation {
 }
 
 pub fn parse(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+    let tuple = {
+        element
+            .followed_by(parsing::whitespace)
+            .followed_by(',')
+            .and(
+                parsing::whitespace
+                    .before(parse)
+                    .followed_by(parsing::whitespace.followed_by(',').maybe())
+                    .any_amount(),
+            )
+            .map(|(fst, rest)| {
+                let mut result = vec![fst];
+                result.extend(rest);
+                Expression::Tuple(result)
+            })
+            .or(element)
+    };
+
+    tuple.try_parse(input)
+}
+
+fn element(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     let mul_div = {
         let mul = '*'.map_to(ArithmeticOperation::Mul);
         let div = '/'.map_to(ArithmeticOperation::Div);
@@ -328,8 +357,8 @@ fn args(input: ParseInput<'_>) -> ParseResult<'_, Vec<Expression>> {
     parsing::open_paren
         .before(
             parsing::whitespace
-                .before(parse)
-                .followed_by(parsing::whitespace.before(',').maybe())
+                .before(element)
+                .followed_by(parsing::whitespace.followed_by(',').maybe())
                 .any_amount(),
         )
         .followed_by(parsing::whitespace)

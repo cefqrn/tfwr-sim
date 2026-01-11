@@ -14,6 +14,7 @@ pub enum Value {
     Number(f64),
     Bool(bool),
     Function(Rc<Closure>),
+    Tuple(Vec<Value>),
 }
 
 #[derive(Clone, Debug)]
@@ -29,6 +30,7 @@ impl From<Value> for bool {
         match value {
             Value::Bool(b) => b,
             Value::Number(n) => n != 0.,
+            Value::Tuple(e) => !e.is_empty(),
             _ => true,
         }
     }
@@ -39,6 +41,7 @@ impl From<&Value> for bool {
         match value {
             Value::Bool(b) => *b,
             Value::Number(n) => *n != 0.,
+            Value::Tuple(e) => !e.is_empty(),
             _ => true,
         }
     }
@@ -78,6 +81,7 @@ impl PartialEq for Value {
                 f64::try_from(self).expect("checked") == f64::try_from(other).expect("checked")
             }
             (Self::Function(a), Self::Function(b)) => Rc::ptr_eq(a, b),
+            (Self::Tuple(a), Self::Tuple(b)) => a == b,
             _ => false,
         }
     }
@@ -95,6 +99,7 @@ impl PartialOrd for Value {
                     .partial_cmp(&f64::try_from(other).expect("checked"))
             }
             (Self::Function(a), Self::Function(b)) => Rc::ptr_eq(a, b).then_some(Ordering::Equal),
+            (Self::Tuple(a), Self::Tuple(b)) => a.partial_cmp(b),
             _ => None,
         }
     }

@@ -479,4 +479,43 @@ d = f != g"
         context.get("c"),
         context.get("d")
     );
+
+    let ((mut context, x), _) = statement::module(
+        "
+a = 1
+b = 1,
+c = (1)
+d = (1,)
+e = 1, 2"
+            .into(),
+    )
+    .unwrap();
+    println!("{context:?} {x:?}");
+    for s in x {
+        assert!(s.execute(&mut context).is_none(), "no error");
+    }
+    println!(
+        "{:?} {:?} {:?} {:?} {:?}",
+        context.get("a"),
+        context.get("b"),
+        context.get("c"),
+        context.get("d"),
+        context.get("e")
+    );
+
+    let ((context, x), _) = statement::module(
+        "
+_ = f(1)
+_ = f(1,)
+_ = f((1,))
+_ = f((1,),)
+_ = f(1, 2)
+_ = f(1, 2,)
+_ = f((1,), 2)
+_ = f((1,), 2,)
+"
+        .into(),
+    )
+    .unwrap();
+    println!("{context:?} {x:?}");
 }
