@@ -43,6 +43,8 @@ pub enum ArithmeticOperation {
     Sub,
     Mul,
     Div,
+    Mod,
+    FloorDiv,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -124,8 +126,16 @@ impl Operation {
                             ArithmeticOperation::Add => Ok(Value::Number(x + y)),
                             ArithmeticOperation::Sub => Ok(Value::Number(x - y)),
                             ArithmeticOperation::Mul => Ok(Value::Number(x * y)),
-                            ArithmeticOperation::Div if y == 0. => Err(EvaluationError),
+                            ArithmeticOperation::Div
+                            | ArithmeticOperation::Mod
+                            | ArithmeticOperation::FloorDiv
+                                if y == 0. =>
+                            {
+                                Err(EvaluationError)
+                            }
                             ArithmeticOperation::Div => Ok(Value::Number(x / y)),
+                            ArithmeticOperation::Mod => Ok(Value::Number(x.rem_euclid(y))),
+                            ArithmeticOperation::FloorDiv => Ok(Value::Number(x.div_euclid(y))),
                         }
                     }
                     BinaryOperation::Logical(op) => match op {
@@ -200,7 +210,15 @@ pub fn parse(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     let mul_div = {
         let mul = '*'.map_to(ArithmeticOperation::Mul);
         let div = '/'.map_to(ArithmeticOperation::Div);
-        binop(pos_neg, mul.or(div).map(BinaryOperation::Arithmetic))
+        let mod_ = '%'.map_to(ArithmeticOperation::Mod);
+        let fdiv = "//".map_to(ArithmeticOperation::FloorDiv);
+        binop(
+            pos_neg,
+            mul.or(fdiv)
+                .or(div)
+                .or(mod_)
+                .map(BinaryOperation::Arithmetic),
+        )
     };
 
     let add_sub = {

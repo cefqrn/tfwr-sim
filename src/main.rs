@@ -430,4 +430,18 @@ b = \"pineapple\" != \"pizza\""
     for s in x {
         assert!(s.execute(&mut context).is_some(), "errors");
     }
+
+    let ((mut context, x), _) = statement::module("a = -5 % 3".into()).unwrap();
+    println!("{x:?}");
+    for s in x {
+        s.execute(&mut context);
+    }
+    println!("{context:?}");
+
+    let ((mut context, x), _) = statement::module("a = -5//3".into()).unwrap();
+    println!("{x:?}");
+    for s in x {
+        s.execute(&mut context);
+    }
+    println!("{context:?}");
 }
