@@ -1,6 +1,11 @@
-pub mod parser;
-
-use parser::{Context, Parser};
+use evaluation::Context;
+use parsing::Parser;
+use tfwr_sim::evaluation;
+use tfwr_sim::expression;
+use tfwr_sim::parsing;
+use tfwr_sim::statement;
+use tfwr_sim::value;
+use value::Value;
 
 fn main() {
     println!("{:?}", "pineapple".try_parse("pineapple pizza".into()));
@@ -14,47 +19,46 @@ fn main() {
 
     println!(
         "{:?}",
-        parser::number
-            .followed_by(&parser::spaces)
-            .and(&parser::number)
-            .followed_by(&parser::spaces)
-            .and(&parser::number)
+        value::parse
+            .followed_by(&parsing::spaces)
+            .and(&value::parse)
+            .followed_by(&parsing::spaces)
+            .and(&value::parse)
             .try_parse("51.23     1234    .5".into())
     );
-    println!("{:?}", parser::number.try_parse(".".into()));
-    println!("{:?}", parser::number.try_parse("5.".into()));
+    println!("{:?}", value::parse.try_parse(".".into()));
+    println!("{:?}", value::parse.try_parse("5.".into()));
 
-    println!("{:?}", parser::identifier.try_parse("pineapple ".into()));
-    println!("{:?}", parser::identifier.try_parse("1pineapple ".into()));
+    println!("{:?}", expression::parse.try_parse("pineapple ".into()));
+    println!("{:?}", expression::parse.try_parse("1pineapple ".into()));
     println!(
         "{:?}",
-        parser::identifier
+        expression::parse
             .try_parse("_ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω123 ".into())
     );
     println!(
         "{:?}",
-        parser::identifier
-            .try_parse("ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω123 ".into())
+        expression::parse.try_parse("ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω123 ".into())
     );
 
-    println!("{:?}", parser::expression.try_parse("None".into()));
-    println!("{:?}", parser::expression.try_parse("Noneα".into()));
-    println!("{:?}", parser::expression.try_parse("None ".into()));
+    println!("{:?}", expression::parse.try_parse("None".into()));
+    println!("{:?}", expression::parse.try_parse("Noneα".into()));
+    println!("{:?}", expression::parse.try_parse("None ".into()));
 
-    println!("{:?}", parser::expression.try_parse("\"\" ".into()));
+    println!("{:?}", expression::parse.try_parse("\"\" ".into()));
     println!(
         "{:?}",
-        parser::expression.try_parse("\"pineapple\npizza\" ".into())
+        expression::parse.try_parse("\"pineapple\npizza\" ".into())
     );
     println!(
         "{:?}",
-        parser::expression.try_parse("\"\\\"pineapple\\\" pizza\" ".into())
+        expression::parse.try_parse("\"\\\"pineapple\\\" pizza\" ".into())
     );
 
-    println!("{:?}", parser::expression.try_parse("(1)".into()));
+    println!("{:?}", expression::parse.try_parse("(1)".into()));
     println!(
         "{:?}",
-        parser::expression.try_parse(
+        expression::parse.try_parse(
             "(#comment
         (1 # comment
         )
@@ -64,10 +68,10 @@ fn main() {
         )
     );
 
-    println!("{:?}", parser::expression.try_parse("+  1".into()));
+    println!("{:?}", expression::parse.try_parse("+  1".into()));
     println!(
         "{:?}",
-        parser::expression.try_parse(
+        expression::parse.try_parse(
             "-
             1"
             .into()
@@ -75,7 +79,7 @@ fn main() {
     );
     println!(
         "{:?}",
-        parser::expression.try_parse(
+        expression::parse.try_parse(
             "(+
 
         1 # comment
@@ -87,17 +91,17 @@ fn main() {
     let mut context = Context::new();
     context.insert(
         "pineapple".to_owned(),
-        (Some(parser::Value::Number(123.)), Vec::new()),
+        (Some(Value::Number(123.)), Vec::new()),
     );
 
-    let (x, _) = parser::expression.try_parse("-5.6".into()).unwrap();
+    let (x, _) = expression::parse.try_parse("-5.6".into()).unwrap();
     println!("{:?}", x.evaluate(&mut context));
-    let (x, _) = parser::expression.try_parse("+5.6".into()).unwrap();
+    let (x, _) = expression::parse.try_parse("+5.6".into()).unwrap();
     println!("{:?}", x.evaluate(&mut context));
 
     println!(
         "{:?}",
-        parser::expression.try_parse(
+        expression::parse.try_parse(
             "pineapple (
     ) "
             .into()
@@ -106,40 +110,40 @@ fn main() {
 
     println!(
         "{:?}",
-        parser::expression.try_parse(
+        expression::parse.try_parse(
             "-pineapple (
     ) "
             .into()
         )
     );
-    let (x, _) = parser::expression.try_parse("pineapple()".into()).unwrap();
+    let (x, _) = expression::parse.try_parse("pineapple()".into()).unwrap();
     println!("{:?}", x.evaluate(&mut context));
 
     println!(
         "{:?}",
-        parser::expression.try_parse("--+-++-1 + ---+-+-5".into())
+        expression::parse.try_parse("--+-++-1 + ---+-+-5".into())
     );
     println!(
         "{:?}",
-        parser::expression.try_parse("1 + 2 - 3 * 7 - -5 / 3".into())
+        expression::parse.try_parse("1 + 2 - 3 * 7 - -5 / 3".into())
     );
-    let (x, _) = parser::expression
+    let (x, _) = expression::parse
         .try_parse("1 + 2 - 3 * 7 - -5 / 3".into())
         .unwrap();
     println!("{:?}", x.evaluate(&mut context));
 
-    let (x, _) = parser::expression
+    let (x, _) = expression::parse
         .try_parse("567 * -pineapple".into())
         .unwrap();
     println!("{:?}", x.evaluate(&mut context));
 
-    let (x, _) = parser::statement.try_parse("pizza = 5".into()).unwrap();
-    parser::declare(&mut context, "pizza".to_owned());
+    let (x, _) = statement::statement.try_parse("pizza = 5".into()).unwrap();
+    evaluation::declare(&mut context, "pizza".to_owned());
     println!("{context:?} {x:?}");
     x.execute(&mut context);
     println!("{context:?}");
 
-    let ((mut context, x), _) = parser::module
+    let ((mut context, x), _) = statement::module
         .try_parse(
             "
 a = 5
@@ -159,16 +163,16 @@ d = a * -b + c
     }
     println!("{context:?}");
 
-    println!("{:?}", parser::statement.try_parse("None = 5".into()));
+    println!("{:?}", statement::statement.try_parse("None = 5".into()));
 
-    let (x, _) = parser::expression.try_parse("+True".into()).unwrap();
+    let (x, _) = expression::parse.try_parse("+True".into()).unwrap();
     println!("{x:?}");
     println!("{:?}", x.evaluate(&mut context));
-    let (x, _) = parser::expression.try_parse("-True".into()).unwrap();
+    let (x, _) = expression::parse.try_parse("-True".into()).unwrap();
     println!("{x:?}");
     println!("{:?}", x.evaluate(&mut context));
 
-    let ((mut context, x), _) = parser::module
+    let ((mut context, x), _) = statement::module
         .try_parse(
             "
 if 999:
@@ -198,7 +202,7 @@ if 0:
     }
     println!("{context:?}");
 
-    let ((mut context, x), _) = parser::module
+    let ((mut context, x), _) = statement::module
         .try_parse(
             "
 if True:
@@ -246,9 +250,9 @@ else:
     }
     println!("{context:?}");
 
-    println!("{:?}", parser::module.try_parse("x = 1 y = 2".into()));
+    println!("{:?}", statement::module.try_parse("x = 1 y = 2".into()));
 
-    let ((mut context, x), _) = parser::module
+    let ((mut context, x), _) = statement::module
         .try_parse(
             "
 def f(a, b):
