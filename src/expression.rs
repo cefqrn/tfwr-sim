@@ -31,6 +31,7 @@ pub enum UnaryOperation {
 #[derive(Clone, Copy, Debug)]
 pub enum BinaryOperation {
     Arithmetic(ArithmeticOperation),
+    Logical(LogicalOperation),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -39,6 +40,12 @@ pub enum ArithmeticOperation {
     Sub,
     Mul,
     Div,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum LogicalOperation {
+    And,
+    Or,
 }
 
 impl Expression {
@@ -115,6 +122,29 @@ impl Operation {
                             ArithmeticOperation::Div => Ok(Value::Number(x / y)),
                         }
                     }
+                    BinaryOperation::Logical(op) => {
+                        let Value::Bool(x_bool) =
+                            x.clone().as_bool().expect("as_bool shouldn't error")
+                        else {
+                            panic!("as_bool should return a bool")
+                        };
+                        match op {
+                            LogicalOperation::And => {
+                                if x_bool {
+                                    y.evaluate(context)
+                                } else {
+                                    Ok(x)
+                                }
+                            }
+                            LogicalOperation::Or => {
+                                if x_bool {
+                                    Ok(x)
+                                } else {
+                                    y.evaluate(context)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -140,57 +170,51 @@ pub fn parse(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
         Ok((result, input))
     };
 
-    let mul_div = |input| {
-        let mul = '*'.map(|_| ArithmeticOperation::Mul);
-        let div = '/'.map(|_| ArithmeticOperation::Div);
-
-        let ((initial_term, terms), input) = pos_neg
-            .and(
-                parsing::whitespace
-                    .before(mul.or(div))
-                    .followed_by(parsing::whitespace)
-                    .and(pos_neg)
-                    .any_amount(),
-            )
-            .try_parse(input)?;
-
-        let result = terms.into_iter().fold(initial_term, |acc, (op, term)| {
-            Expression::Operation(Operation::Binary(
-                BinaryOperation::Arithmetic(op),
-                Box::new(acc),
-                Box::new(term),
-            ))
-        });
-
-        Ok((result, input))
+    let mul_div = {
+        let mul = '*'.map_to(ArithmeticOperation::Mul);
+        let div = '/'.map_to(ArithmeticOperation::Div);
+        binop(pos_neg, mul.or(div).map(BinaryOperation::Arithmetic))
     };
 
-    let add_sub = |input| {
-        let add = '+'.map(|_| ArithmeticOperation::Add);
-        let sub = '-'.map(|_| ArithmeticOperation::Sub);
-
-        let ((initial_term, terms), input) = mul_div
-            .and(
-                parsing::whitespace
-                    .before(add.or(sub))
-                    .followed_by(parsing::whitespace)
-                    .and(mul_div)
-                    .any_amount(),
-            )
-            .try_parse(input)?;
-
-        let result = terms.into_iter().fold(initial_term, |acc, (op, term)| {
-            Expression::Operation(Operation::Binary(
-                BinaryOperation::Arithmetic(op),
-                Box::new(acc),
-                Box::new(term),
-            ))
-        });
-
-        Ok((result, input))
+    let add_sub = {
+        let add = '+'.map_to(ArithmeticOperation::Add);
+        let sub = '-'.map_to(ArithmeticOperation::Sub);
+        binop(mul_div, add.or(sub).map(BinaryOperation::Arithmetic))
     };
 
-    add_sub.try_parse(input)
+    let and = {
+        let op = "and"
+            .followed_by(parsing::identifier_boundary)
+            .map_to(LogicalOperation::And);
+        binop(add_sub, op.map(BinaryOperation::Logical))
+    };
+
+    let or = {
+        let op = "or"
+            .followed_by(parsing::identifier_boundary)
+            .map_to(LogicalOperation::Or);
+        binop(and, op.map(BinaryOperation::Logical))
+    };
+
+    or.try_parse(input)
+}
+
+fn binop<'a>(
+    atom: impl Parser<'a, Expression>,
+    operation: impl Parser<'a, BinaryOperation>,
+) -> impl Parser<'a, Expression> {
+    atom.and(
+        parsing::whitespace
+            .before(operation)
+            .followed_by(parsing::whitespace)
+            .and(atom)
+            .any_amount(),
+    )
+    .map(|(initial_term, terms)| {
+        terms.into_iter().fold(initial_term, |acc, (op, term)| {
+            Expression::Operation(Operation::Binary(op, Box::new(acc), Box::new(term)))
+        })
+    })
 }
 
 fn primary(input: ParseInput<'_>) -> ParseResult<'_, Expression> {

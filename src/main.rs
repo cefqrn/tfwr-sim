@@ -357,4 +357,36 @@ _ = f()
         s.execute(&mut context);
     }
     println!("{:?}", context.get("x"));
+
+    let ((mut context, x), _) = statement::module(
+        "
+def f(x):
+    global side_effect
+    side_effect = x
+
+_ = 5 or f(6)"
+            .into(),
+    )
+    .unwrap();
+    println!("{context:?} {x:?}");
+    for s in x {
+        s.execute(&mut context);
+    }
+    println!("{:?}", context.get("side_effect"));
+
+    let ((mut context, x), _) = statement::module(
+        "
+def f(x):
+    global side_effect
+    side_effect = x
+
+_ = 5 and f(6)"
+            .into(),
+    )
+    .unwrap();
+    println!("{context:?} {x:?}");
+    for s in x {
+        s.execute(&mut context);
+    }
+    println!("{:?}", context.get("side_effect"));
 }

@@ -1,5 +1,3 @@
-use crate::value;
-
 #[derive(Debug)]
 pub struct ParseError;
 
@@ -26,7 +24,7 @@ pub type ParseResult<'a, T> = Result<(T, ParseInput<'a>), ParseError>;
 
 pub trait Parser<'a, T>
 where
-    Self: Sized,
+    Self: Sized + Copy,
 {
     fn try_parse(&self, input: ParseInput<'a>) -> ParseResult<'a, T>;
 
@@ -106,7 +104,7 @@ where
         }
     }
 
-    fn map<U>(self, f: impl Fn(T) -> U) -> impl Parser<'a, U> {
+    fn map<U>(self, f: impl Copy + Fn(T) -> U) -> impl Parser<'a, U> {
         move |input| match self.try_parse(input) {
             Ok((x, input)) => Ok((f(x), input)),
             Err(e) => Err(e),
@@ -122,7 +120,7 @@ where
     }
 }
 
-impl<'b, T, U: Fn(ParseInput<'b>) -> ParseResult<'b, T>> Parser<'b, T> for U {
+impl<'b, T, U: Copy + Fn(ParseInput<'b>) -> ParseResult<'b, T>> Parser<'b, T> for U {
     fn try_parse(&self, input: ParseInput<'b>) -> ParseResult<'b, T> {
         self(input)
     }
@@ -263,17 +261,11 @@ pub fn identifier_string(input: ParseInput<'_>) -> ParseResult<'_, String> {
     Ok((name.into_iter().collect(), input))
 }
 
-// TODO: better way to declare keywords
 pub fn assignable(input: ParseInput<'_>) -> ParseResult<'_, String> {
     let (name, input) = identifier_string.try_parse(input)?;
 
-    if name == "global" {
-        Err(ParseError)?;
+    match name.as_str() {
+        "True" | "False" | "None" | "and" | "or" | "if" | "def" | "global" => Err(ParseError),
+        _ => Ok((name, input)),
     }
-
-    // can't assign to a keyword
-    value::parse(name.as_str().into())
-        .is_err()
-        .then_some((name, input))
-        .ok_or(ParseError)
 }
