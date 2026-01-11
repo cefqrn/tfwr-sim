@@ -51,6 +51,49 @@ impl TryFrom<Value> for f64 {
     }
 }
 
+impl TryFrom<&Value> for f64 {
+    type Error = EvaluationError;
+
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::Number(n) => Ok(*n),
+            Value::Bool(true) => Ok(1.),
+            Value::Bool(false) => Ok(0.),
+            _ => Err(EvaluationError),
+        }
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::String(l0), Self::String(r0)) => l0 == r0,
+            (Self::Number(_) | Self::Bool(_), Self::Number(_) | Self::Bool(_)) => {
+                f64::try_from(self).expect("checked") == f64::try_from(other).expect("checked")
+            }
+            (Self::Function(_, _, _, _), Self::Function(_, _, _, _)) => todo!(),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Value {}
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Self::String(l0), Self::String(r0)) => l0.partial_cmp(r0),
+            (Self::Number(_) | Self::Bool(_), Self::Number(_) | Self::Bool(_)) => {
+                f64::try_from(self)
+                    .expect("checked")
+                    .partial_cmp(&f64::try_from(other).expect("checked"))
+            }
+            (Self::Function(_, _, _, _), Self::Function(_, _, _, _)) => todo!(),
+            _ => None,
+        }
+    }
+}
+
 pub fn parse(input: ParseInput<'_>) -> ParseResult<'_, Value> {
     let none = "None".map(|_| Value::None);
     let true_ = "True".map(|_| Value::Bool(true));

@@ -5,6 +5,8 @@ use evaluation::{Context, EvaluationError};
 use parsing::{ParseInput, ParseResult, Parser};
 use value::Value;
 
+use std::cmp::Ordering;
+
 #[derive(Clone, Debug)]
 pub enum Expression {
     Literal(Value),
@@ -32,6 +34,7 @@ pub enum UnaryOperation {
 pub enum BinaryOperation {
     Arithmetic(ArithmeticOperation),
     Logical(LogicalOperation),
+    Comparison(ComparisonOperation),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -46,6 +49,16 @@ pub enum ArithmeticOperation {
 pub enum LogicalOperation {
     And,
     Or,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum ComparisonOperation {
+    Eq,
+    Ge,
+    Gt,
+    Le,
+    Lt,
+    Ne,
 }
 
 impl Expression {
@@ -131,6 +144,34 @@ impl Operation {
                             }
                         }
                     },
+                    BinaryOperation::Comparison(op) => {
+                        let y = y.evaluate(context)?;
+                        match (op, x.partial_cmp(&y)) {
+                            (
+                                ComparisonOperation::Eq
+                                | ComparisonOperation::Ge
+                                | ComparisonOperation::Le,
+                                Some(Ordering::Equal),
+                            )
+                            | (
+                                ComparisonOperation::Ge
+                                | ComparisonOperation::Gt
+                                | ComparisonOperation::Ne,
+                                Some(Ordering::Greater),
+                            )
+                            | (
+                                ComparisonOperation::Le
+                                | ComparisonOperation::Lt
+                                | ComparisonOperation::Ne,
+                                Some(Ordering::Less),
+                            )
+                            | (ComparisonOperation::Ne, None) => Ok(Value::Bool(true)),
+                            (_, Some(_)) | (ComparisonOperation::Eq, None) => {
+                                Ok(Value::Bool(false))
+                            }
+                            (_, None) => Err(EvaluationError),
+                        }
+                    }
                 }
             }
         }
@@ -168,11 +209,37 @@ pub fn parse(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
         binop(mul_div, add.or(sub).map(BinaryOperation::Arithmetic))
     };
 
+    let cmp = {
+        let eq = "==".map_to(ComparisonOperation::Eq);
+        let ge = ">=".map_to(ComparisonOperation::Ge);
+        let gt = ">".map_to(ComparisonOperation::Gt);
+        let le = "<=".map_to(ComparisonOperation::Le);
+        let lt = "<".map_to(ComparisonOperation::Lt);
+        let ne = "!=".map_to(ComparisonOperation::Ne);
+
+        let op = eq.or(gt).or(ge).or(lt).or(le).or(ne);
+
+        // no chaining
+        add_sub
+            .followed_by(parsing::whitespace)
+            .and(op)
+            .followed_by(parsing::whitespace)
+            .and(add_sub)
+            .map(|((x, op), y)| {
+                Expression::Operation(Operation::Binary(
+                    BinaryOperation::Comparison(op),
+                    Box::new(x),
+                    Box::new(y),
+                ))
+            })
+            .or(add_sub)
+    };
+
     let and = {
         let op = "and"
             .followed_by(parsing::identifier_boundary)
             .map_to(LogicalOperation::And);
-        binop(add_sub, op.map(BinaryOperation::Logical))
+        binop(cmp, op.map(BinaryOperation::Logical))
     };
 
     let or = {

@@ -389,4 +389,45 @@ _ = 5 and f(6)"
         s.execute(&mut context);
     }
     println!("{:?}", context.get("side_effect"));
+
+    let ((mut context, x), _) = statement::module(
+        "
+def f(a, b):
+    global result
+    if b < 10000:
+        _ = f(b, a+b)
+    else:
+        result = b
+
+_ = f(0, 1)"
+            .into(),
+    )
+    .unwrap();
+    println!("{context:?} {x:?}");
+    for s in x {
+        s.execute(&mut context);
+    }
+    println!("{:?}", context.get("result"));
+
+    let ((mut context, x), _) = statement::module(
+        "
+def f():
+    _ = 1
+
+a = 5 == f
+b = \"pineapple\" != \"pizza\""
+            .into(),
+    )
+    .unwrap();
+    println!("{context:?} {x:?}");
+    for s in x {
+        assert!(s.execute(&mut context).is_none(), "no error");
+    }
+    println!("{:?} {:?}", context.get("a"), context.get("b"));
+
+    let ((mut context, x), _) = statement::module("a = 5 < \"\"".into()).unwrap();
+    println!("{x:?}");
+    for s in x {
+        assert!(s.execute(&mut context).is_some(), "errors");
+    }
 }
