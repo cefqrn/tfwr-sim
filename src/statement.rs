@@ -35,12 +35,8 @@ impl Statement {
             },
             Self::If(possibilities, else_) => {
                 for (condition, body) in possibilities {
-                    let condition = match condition
-                        .evaluate(context)
-                        .map(|c| c.as_bool().expect("as_bool shouldn't error"))
-                    {
-                        Ok(Value::Bool(condition)) => condition,
-                        Ok(_) => unreachable!(),
+                    let condition = match condition.evaluate(context) {
+                        Ok(r) => r.into(),
                         Err(e) => return Some(e),
                     };
 

@@ -96,10 +96,7 @@ impl Operation {
                         Value::Number(_) | Value::Bool(_) => Ok(x),
                         _ => Err(EvaluationError),
                     },
-                    UnaryOperation::Neg => match x.as_num()? {
-                        Value::Number(x) => Ok(Value::Number(-x)),
-                        _ => Err(EvaluationError),
-                    },
+                    UnaryOperation::Neg => f64::try_from(x).map(|n| Value::Number(-n)),
                 }
             }
             Self::Binary(op, x, y) => {
@@ -107,12 +104,8 @@ impl Operation {
 
                 match op {
                     BinaryOperation::Arithmetic(op) => {
-                        let Value::Number(x) = x.as_num()? else {
-                            panic!("as_num should return a number")
-                        };
-                        let Value::Number(y) = y.evaluate(context)?.as_num()? else {
-                            panic!("as_num should return a number")
-                        };
+                        let x: f64 = x.try_into()?;
+                        let y: f64 = y.evaluate(context)?.try_into()?;
 
                         match op {
                             ArithmeticOperation::Add => Ok(Value::Number(x + y)),
@@ -122,29 +115,22 @@ impl Operation {
                             ArithmeticOperation::Div => Ok(Value::Number(x / y)),
                         }
                     }
-                    BinaryOperation::Logical(op) => {
-                        let Value::Bool(x_bool) =
-                            x.clone().as_bool().expect("as_bool shouldn't error")
-                        else {
-                            panic!("as_bool should return a bool")
-                        };
-                        match op {
-                            LogicalOperation::And => {
-                                if x_bool {
-                                    y.evaluate(context)
-                                } else {
-                                    Ok(x)
-                                }
-                            }
-                            LogicalOperation::Or => {
-                                if x_bool {
-                                    Ok(x)
-                                } else {
-                                    y.evaluate(context)
-                                }
+                    BinaryOperation::Logical(op) => match op {
+                        LogicalOperation::And => {
+                            if (&x).into() {
+                                y.evaluate(context)
+                            } else {
+                                Ok(x)
                             }
                         }
-                    }
+                        LogicalOperation::Or => {
+                            if (&x).into() {
+                                Ok(x)
+                            } else {
+                                y.evaluate(context)
+                            }
+                        }
+                    },
                 }
             }
         }

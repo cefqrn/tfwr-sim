@@ -18,21 +18,35 @@ pub enum Value {
     ),
 }
 
-impl Value {
-    pub fn as_num(self) -> Result<Self, EvaluationError> {
-        match self {
-            Self::Number(_) => Ok(self),
-            Self::Bool(true) => Ok(Self::Number(1.)),
-            Self::Bool(false) => Ok(Self::Number(0.)),
-            _ => Err(EvaluationError),
+impl From<Value> for bool {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Bool(b) => b,
+            Value::Number(n) => n != 0.,
+            _ => true,
         }
     }
+}
 
-    pub fn as_bool(self) -> Result<Self, EvaluationError> {
-        match self {
-            Self::Bool(_) => Ok(self),
-            Self::Number(n) => Ok(Self::Bool(n != 0.)),
-            _ => Ok(Self::Bool(true)),
+impl From<&Value> for bool {
+    fn from(value: &Value) -> Self {
+        match value {
+            Value::Bool(b) => *b,
+            Value::Number(n) => *n != 0.,
+            _ => true,
+        }
+    }
+}
+
+impl TryFrom<Value> for f64 {
+    type Error = EvaluationError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::Number(n) => Ok(n),
+            Value::Bool(true) => Ok(1.),
+            Value::Bool(false) => Ok(0.),
+            _ => Err(EvaluationError),
         }
     }
 }
