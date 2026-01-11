@@ -444,4 +444,11 @@ b = \"pineapple\" != \"pizza\""
         s.execute(&mut context);
     }
     println!("{context:?}");
+
+    let ((mut context, x), _) = statement::module("a = -2**-3**-4".into()).unwrap();
+    println!("{x:?}");
+    for s in x {
+        s.execute(&mut context);
+    }
+    println!("{context:?}");
 }

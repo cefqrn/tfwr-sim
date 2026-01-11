@@ -45,6 +45,7 @@ pub enum ArithmeticOperation {
     Div,
     Mod,
     FloorDiv,
+    Exp,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -136,6 +137,7 @@ impl Operation {
                             ArithmeticOperation::Div => Ok(Value::Number(x / y)),
                             ArithmeticOperation::Mod => Ok(Value::Number(x.rem_euclid(y))),
                             ArithmeticOperation::FloorDiv => Ok(Value::Number(x.div_euclid(y))),
+                            ArithmeticOperation::Exp => Ok(Value::Number(x.powf(y))),
                         }
                     }
                     BinaryOperation::Logical(op) => match op {
@@ -189,31 +191,13 @@ impl Operation {
 }
 
 pub fn parse(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
-    let pos_neg = |input| {
-        let pos = '+'.map_to(UnaryOperation::Pos);
-        let neg = '-'.map_to(UnaryOperation::Neg);
-
-        let (ops, input) = neg
-            .or(pos)
-            .followed_by(parsing::whitespace)
-            .any_amount()
-            .try_parse(input)?;
-        let (result, input) = call.try_parse(input)?;
-
-        let result = ops.into_iter().rev().fold(result, |acc, op| {
-            Expression::Operation(Operation::Unary(op, Box::new(acc)))
-        });
-
-        Ok((result, input))
-    };
-
     let mul_div = {
         let mul = '*'.map_to(ArithmeticOperation::Mul);
         let div = '/'.map_to(ArithmeticOperation::Div);
         let mod_ = '%'.map_to(ArithmeticOperation::Mod);
         let fdiv = "//".map_to(ArithmeticOperation::FloorDiv);
         binop(
-            pos_neg,
+            pos_neg(exp),
             mul.or(fdiv)
                 .or(div)
                 .or(mod_)
@@ -286,6 +270,38 @@ fn binop<'a>(
             Expression::Operation(Operation::Binary(op, Box::new(acc), Box::new(term)))
         })
     })
+}
+
+fn pos_neg<'a>(atom: impl Parser<'a, Expression>) -> impl Parser<'a, Expression> {
+    let pos = '+'.map_to(UnaryOperation::Pos);
+    let neg = '-'.map_to(UnaryOperation::Neg);
+
+    neg.or(pos)
+        .followed_by(parsing::whitespace)
+        .any_amount()
+        .and(atom)
+        .map(|(ops, base)| {
+            ops.into_iter().rev().fold(base, |acc, op| {
+                Expression::Operation(Operation::Unary(op, Box::new(acc)))
+            })
+        })
+}
+
+fn exp(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+    // right associative
+    call.followed_by(parsing::whitespace)
+        .followed_by("**")
+        .followed_by(parsing::whitespace)
+        .and(pos_neg(exp))
+        .map(|(x, y)| {
+            Expression::Operation(Operation::Binary(
+                BinaryOperation::Arithmetic(ArithmeticOperation::Exp),
+                Box::new(x),
+                Box::new(y),
+            ))
+        })
+        .or(pos_neg(call))
+        .try_parse(input)
 }
 
 fn primary(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
