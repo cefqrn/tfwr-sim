@@ -9,7 +9,6 @@ pub struct ParseError;
 #[derive(Clone, Copy, Debug)]
 pub struct ParseInput<'a> {
     enclosure_amount: usize,
-    indentation_level: usize,
     indentation: &'a str,
     s: &'a str,
     fully_consumed: bool,
@@ -19,7 +18,6 @@ impl<'a> From<&'a str> for ParseInput<'a> {
     fn from(value: &'a str) -> Self {
         ParseInput {
             enclosure_amount: 0,
-            indentation_level: 0,
             indentation: "",
             s: value.trim(),
             fully_consumed: false,
@@ -259,7 +257,7 @@ pub enum Value {
     String(String),
     Number(f64),
     Bool(bool),
-    Function,
+    Function(Vec<String>, Vec<Statement>),
 }
 
 pub fn number(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
@@ -339,14 +337,14 @@ pub fn atom(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
         .try_parse(input)
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum UnaryOperation {
     Pos,
     Neg,
     Call,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum ArithmeticOperation {
     Add,
     Sub,
@@ -354,18 +352,18 @@ pub enum ArithmeticOperation {
     Div,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum BinaryOperation {
     Arithmetic(ArithmeticOperation),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Operation {
     Unary(UnaryOperation, Box<Expression>),
     Binary(BinaryOperation, Box<Expression>, Box<Expression>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Expression {
     Literal(Value),
     Identifier(String),
@@ -437,14 +435,18 @@ impl Operation {
     }
 }
 
-pub type Context = HashMap<String, Value>;
+pub type Variable = Option<Value>;
+pub type Context = HashMap<String, (Variable, Vec<Variable>)>;
 
 impl Expression {
     pub fn evaluate(self, context: &mut Context) -> Result<Value, EvaluationError> {
         match self {
             Self::Literal(v) => Ok(v),
-            Self::Identifier(n) => context.get(&n).cloned().ok_or(EvaluationError),
             Self::Operation(op) => op.evaluate(context),
+            Self::Identifier(n) => match context.get(&n) {
+                None => Err(EvaluationError), // variable does not exist
+                Some((v, _)) => v.clone().ok_or(EvaluationError),
+            },
         }
     }
 }
@@ -553,10 +555,46 @@ pub fn expression(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     add_sub.try_parse(input)
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Statement {
     Assignment(String, Expression),
     If(Vec<(Expression, Vec<Statement>)>, Vec<Statement>),
+    Def(String, Vec<String>, Vec<Statement>),
+}
+
+pub fn declare(context: &mut Context, name: String) {
+    context.insert(name, (None, Vec::new()));
+}
+
+pub fn declare_locally(context: &mut Context, name: &str) {
+    let (top, stack) = context.get_mut(name).expect("already added to context");
+    stack.push(top.take());
+}
+
+pub fn assign(context: &mut Context, name: &str, value: Value) {
+    let (top, _) = context.get_mut(name).expect("already added to context");
+    top.replace(value);
+}
+
+#[must_use]
+pub fn assigned_to_in(statements: &[Statement]) -> Vec<&str> {
+    // TODO: globals
+    let mut result = Vec::new();
+    for s in statements {
+        match s {
+            Statement::Assignment(name, _) => result.push(name.as_str()),
+            Statement::Def(name, _, _) => result.push(name.as_str()),
+            Statement::If(if_branches, else_branch) => {
+                for (_, body) in if_branches {
+                    result.extend(assigned_to_in(body));
+                }
+
+                result.extend(assigned_to_in(else_branch));
+            }
+        }
+    }
+
+    result
 }
 
 impl Statement {
@@ -564,7 +602,7 @@ impl Statement {
         match self {
             Self::Assignment(name, value) => match value.evaluate(context) {
                 Ok(value) => {
-                    context.insert(name, value);
+                    assign(context, &name, value);
                     None
                 }
                 Err(e) => Some(e),
@@ -592,6 +630,11 @@ impl Statement {
                     s.execute(context);
                 }
 
+                None
+            }
+            Self::Def(name, parameters, body) => {
+                let value = Value::Function(parameters, body);
+                assign(context, &name, value);
                 None
             }
         }
@@ -648,7 +691,26 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
             Statement::If(possibilities, else_.unwrap_or_else(Vec::new))
         });
 
-    let multi_line = if_;
+    let function = "def"
+        .before(spaces)
+        .before(assignable)
+        .followed_by(spaces)
+        .followed_by(open_paren)
+        .and(
+            whitespace
+                .before(assignable)
+                .followed_by(whitespace.before(',').maybe())
+                .any_amount(),
+        )
+        .followed_by(whitespace)
+        .followed_by(close_paren)
+        .followed_by(spaces)
+        .followed_by(':')
+        .followed_by(up_to_next_statement)
+        .and(block)
+        .map(|((name, params), body)| Statement::Def(name, params, body));
+
+    let multi_line = if_.or(function);
 
     input
         .indentation
@@ -662,12 +724,11 @@ pub fn block(input: ParseInput<'_>) -> ParseResult<'_, Vec<Statement>> {
     let indentation_length = indentation.into_iter().map(char::len_utf8).sum();
     let indentation = &input.s[..indentation_length];
 
-    // if not on the global level, ensure indentation increased and is consistent
-    if input.indentation_level > 0
-        && indentation
-            .strip_prefix(input.indentation)
-            .into_iter()
-            .all(str::is_empty)
+    // ensure indentation increased and is consistent
+    if indentation
+        .strip_prefix(input.indentation)
+        .into_iter()
+        .all(str::is_empty)
     {
         Err(ParseError)?;
     }
@@ -676,7 +737,6 @@ pub fn block(input: ParseInput<'_>) -> ParseResult<'_, Vec<Statement>> {
     let initial_indentation = input.indentation;
     let input = ParseInput {
         indentation,
-        indentation_level: input.indentation_level + 1,
         ..input
     };
 
@@ -685,9 +745,22 @@ pub fn block(input: ParseInput<'_>) -> ParseResult<'_, Vec<Statement>> {
     // reset indentation
     let input = ParseInput {
         indentation: initial_indentation,
-        indentation_level: input.indentation_level - 1,
         ..input
     };
 
     Ok((result, input))
+}
+
+pub fn module(input: ParseInput<'_>) -> ParseResult<'_, (Context, Vec<Statement>)> {
+    let (result, input) = statement.any_amount().try_parse(input)?;
+    if !input.fully_consumed {
+        Err(ParseError)?;
+    }
+
+    let mut context = Context::new();
+    for var in assigned_to_in(&result) {
+        context.insert(var.to_owned(), (None, Vec::new()));
+    }
+
+    Ok(((context, result), input))
 }

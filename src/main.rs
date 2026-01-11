@@ -85,7 +85,10 @@ fn main() {
     );
 
     let mut context = Context::new();
-    context.insert("pineapple".to_owned(), parser::Value::Number(123.));
+    context.insert(
+        "pineapple".to_owned(),
+        (Some(parser::Value::Number(123.)), Vec::new()),
+    );
 
     let (x, _) = parser::expression.try_parse("-5.6".into()).unwrap();
     println!("{:?}", x.evaluate(&mut context));
@@ -131,11 +134,12 @@ fn main() {
     println!("{:?}", x.evaluate(&mut context));
 
     let (x, _) = parser::statement.try_parse("pizza = 5".into()).unwrap();
+    parser::declare(&mut context, "pizza".to_owned());
     println!("{context:?} {x:?}");
     x.execute(&mut context);
     println!("{context:?}");
 
-    let (x, _) = parser::block
+    let ((mut context, x), _) = parser::module
         .try_parse(
             "
 a = 5
@@ -164,8 +168,7 @@ d = a * -b + c
     println!("{x:?}");
     println!("{:?}", x.evaluate(&mut context));
 
-    let mut context = Context::new();
-    let (x, _) = parser::block
+    let ((mut context, x), _) = parser::module
         .try_parse(
             "
 if 999:
@@ -195,8 +198,7 @@ if 0:
     }
     println!("{context:?}");
 
-    let mut context = Context::new();
-    let (x, _) = parser::block
+    let ((mut context, x), _) = parser::module
         .try_parse(
             "
 if True:
@@ -244,5 +246,23 @@ else:
     }
     println!("{context:?}");
 
-    println!("{:?}", parser::block.try_parse("x = 1 y = 2".into()));
+    println!("{:?}", parser::module.try_parse("x = 1 y = 2".into()));
+
+    let ((mut context, x), _) = parser::module
+        .try_parse(
+            "
+def f(a, b):
+    k = a + b
+
+n = 5
+"
+            .into(),
+        )
+        .unwrap();
+
+    println!("{context:?} {x:?}");
+    for s in x {
+        s.execute(&mut context);
+    }
+    println!("{context:?}");
 }
