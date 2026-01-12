@@ -6,6 +6,7 @@ use parsing::{ParseInput, ParseResult, Parser};
 use value::Value;
 
 use std::cmp::Ordering;
+use std::collections::HashSet;
 
 #[derive(Clone, Debug)]
 pub enum Expression {
@@ -83,12 +84,10 @@ impl Expression {
                     return Err(EvaluationError);
                 }
 
-                let mut new_context = f.captured.clone();
-
-                for name in f.locals.iter().cloned() {
-                    evaluation::declare(&mut new_context, name);
+                let mut new_context = f.base_context.clone();
+                for name in &f.locals {
+                    evaluation::declare(&mut new_context, name.clone());
                 }
-
                 for (name, arg) in f.parameters.iter().zip(args.into_iter()) {
                     evaluation::assign(&mut new_context, name, arg.evaluate(context)?);
                 }
@@ -105,6 +104,43 @@ impl Expression {
                     .map(|e| e.evaluate(context))
                     .collect::<Result<Vec<Value>, EvaluationError>>()?,
             )),
+        }
+    }
+
+    #[must_use]
+    pub fn identifiers(&self) -> HashSet<String> {
+        let mut result = HashSet::new();
+        self.identifiers_inner(&mut result);
+
+        result
+    }
+
+    fn identifiers_inner(&self, result: &mut HashSet<String>) {
+        match self {
+            Self::Literal(_) => {}
+            Self::Identifier(name) => {
+                result.insert(name.to_owned());
+            }
+            Self::Operation(operation) => match operation {
+                Operation::Unary(_, x) => {
+                    x.identifiers_inner(result);
+                }
+                Operation::Binary(_, x, y) => {
+                    x.identifiers_inner(result);
+                    y.identifiers_inner(result);
+                }
+            },
+            Self::Tuple(expressions) => {
+                for e in expressions {
+                    e.identifiers_inner(result);
+                }
+            }
+            Self::Call(Call(f, args)) => {
+                f.identifiers_inner(result);
+                for e in args {
+                    e.identifiers_inner(result);
+                }
+            }
         }
     }
 }

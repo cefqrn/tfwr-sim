@@ -268,16 +268,14 @@ n = 5
     }
     println!("{context:?}");
 
-    let ((mut context, x), _) = statement::module.try_parse("x = x + 1".into()).unwrap();
+    let (x, _) = statement::statement.try_parse("x = x + 1".into()).unwrap();
+    let mut context = Context::new();
+    evaluation::declare(&mut context, "x".to_owned());
     evaluation::assign(&mut context, "x", Value::Number(1.));
     println!("{context:?} {x:?}");
-    for s in x.clone() {
-        s.execute(&mut context);
-    }
+    x.clone().execute(&mut context);
     println!("{context:?}");
-    for s in x {
-        s.execute(&mut context);
-    }
+    x.execute(&mut context);
     println!("{context:?}");
 
     let ((context, x), _) = statement::module
@@ -505,6 +503,9 @@ e = 1, 2"
 
     let ((context, x), _) = statement::module(
         "
+def f():
+    _ = None
+
 _ = f(1)
 _ = f(1,)
 _ = f((1,))
@@ -513,6 +514,8 @@ _ = f(1, 2)
 _ = f(1, 2,)
 _ = f((1,), 2)
 _ = f((1,), 2,)
+_ = f((1, 2))
+_ = f((1, 2),)
 "
         .into(),
     )

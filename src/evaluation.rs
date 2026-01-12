@@ -1,9 +1,7 @@
-use crate::expression::{Call, Expression, Operation};
-use crate::statement::Statement;
 use crate::value::Value;
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -29,85 +27,4 @@ pub fn assign(context: &mut Context, name: &str, value: Value) {
 pub fn capture(context: &Context, name: &str) -> Variable {
     let top = context.get(name).expect("already added to context");
     top.clone()
-}
-
-#[must_use]
-pub fn assigned_to_in(statements: &[Statement]) -> HashSet<&str> {
-    let mut result = HashSet::new();
-    for s in statements {
-        match s {
-            Statement::Assignment(name, _) => {
-                result.insert(name.as_str());
-            }
-            Statement::Def(name, _, _, _, captured) => {
-                result.insert(name.as_str());
-                result.extend(captured.iter().map(String::as_str));
-            }
-            Statement::If(if_branches, else_branch) => {
-                for (_, body) in if_branches {
-                    result.extend(assigned_to_in(body));
-                }
-
-                result.extend(assigned_to_in(else_branch));
-            }
-            Statement::Global(_) => {}
-        }
-    }
-
-    result
-}
-
-#[must_use]
-fn identifiers_in(expression: &Expression) -> HashSet<&str> {
-    let mut result = HashSet::new();
-    match expression {
-        Expression::Identifier(name) => {
-            result.insert(name.as_str());
-        }
-        Expression::Literal(_) => {}
-        Expression::Operation(Operation::Unary(_, x)) => {
-            result.extend(identifiers_in(x));
-        }
-        Expression::Operation(Operation::Binary(_, x, y)) => {
-            result.extend(identifiers_in(x));
-            result.extend(identifiers_in(y));
-        }
-        Expression::Call(Call(called, args)) => {
-            result.extend(identifiers_in(called));
-            for arg in args {
-                result.extend(identifiers_in(arg));
-            }
-        }
-        Expression::Tuple(elements) => result.extend(elements.iter().flat_map(identifiers_in)),
-    }
-
-    result
-}
-
-#[must_use]
-pub fn referred_to_in(statements: &[Statement]) -> HashSet<&str> {
-    let mut result = assigned_to_in(statements);
-    for s in statements {
-        match s {
-            Statement::Assignment(_, value) => {
-                result.extend(identifiers_in(value));
-            }
-            Statement::Def(_, _, body, local, _) => {
-                result.extend(
-                    referred_to_in(body).difference(&local.iter().map(String::as_str).collect()),
-                );
-            }
-            Statement::If(if_branches, else_branch) => {
-                for (condition, body) in if_branches {
-                    result.extend(identifiers_in(condition));
-                    result.extend(referred_to_in(body));
-                }
-
-                result.extend(referred_to_in(else_branch));
-            }
-            Statement::Global(_) => {}
-        }
-    }
-
-    result
 }

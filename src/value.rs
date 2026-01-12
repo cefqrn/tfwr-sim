@@ -21,7 +21,7 @@ pub enum Value {
 pub struct Closure {
     pub parameters: Vec<String>,
     pub body: Vec<Statement>,
-    pub captured: Context,
+    pub base_context: Context,
     pub locals: HashSet<String>,
 }
 
