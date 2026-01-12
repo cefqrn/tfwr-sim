@@ -15,6 +15,7 @@ pub enum Statement {
     If(Vec<(Expression, Vec<Statement>)>, Vec<Statement>),
     Def(Definition),
     Global(String),
+    While(Expression, Vec<Statement>),
 }
 
 #[derive(Clone, Debug)]
@@ -28,11 +29,11 @@ pub struct Definition {
 }
 
 impl Statement {
-    pub fn execute(self, context: &mut Context) -> Option<EvaluationError> {
+    pub fn execute(&self, context: &mut Context) -> Option<EvaluationError> {
         match self {
             Self::Assignment(name, value) => match value.evaluate(context) {
                 Ok(value) => {
-                    evaluation::assign(context, &name, value);
+                    evaluation::assign(context, name, value);
                     None
                 }
                 Err(e) => Some(e),
@@ -70,8 +71,8 @@ impl Statement {
                 }
 
                 let value = Value::Function(Rc::new(Closure {
-                    parameters: definition.parameters,
-                    body: definition.body,
+                    parameters: definition.parameters.clone(),
+                    body: definition.body.clone(),
                     base_context,
                     locals: definition.locals.clone(),
                 }));
@@ -81,6 +82,24 @@ impl Statement {
                 None
             }
             Self::Global(_) => None,
+            Self::While(condition, body) => {
+                while {
+                    let condition = match condition.evaluate(context) {
+                        Ok(result) => result,
+                        Err(e) => {
+                            return Some(e);
+                        }
+                    };
+
+                    condition.into()
+                } {
+                    for s in body {
+                        s.execute(context);
+                    }
+                }
+
+                None
+            }
         }
     }
 }
@@ -138,7 +157,16 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
             Statement::If(possibilities, else_.unwrap_or_else(Vec::new))
         });
 
-    let multi_line = if_.or(def);
+    let while_ = "while"
+        .before(parsing::spaces)
+        .before(expression::parse)
+        .followed_by(parsing::spaces)
+        .followed_by(':')
+        .followed_by(parsing::up_to_next_statement)
+        .and(block)
+        .map(|(condition, body)| Statement::While(condition, body));
+
+    let multi_line = if_.or(def).or(while_);
 
     input
         .indentation
@@ -348,6 +376,15 @@ fn classify_vars(
             }
 
             for s in else_ {
+                classify_vars(s, locals, captured, captured_and_modified)?;
+            }
+        }
+        Statement::While(condition, body) => {
+            for var in condition.identifiers() {
+                see(var, locals, captured, captured_and_modified);
+            }
+
+            for s in body {
                 classify_vars(s, locals, captured, captured_and_modified)?;
             }
         }

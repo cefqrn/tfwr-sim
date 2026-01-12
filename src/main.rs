@@ -521,4 +521,21 @@ _ = f((1, 2),)
     )
     .unwrap();
     println!("{context:?} {x:?}");
+
+    let ((mut context, x), _) = statement::module(
+        "
+a = 0
+b = 1
+while b < 1000:
+    c = a + b
+    a = b
+    b = c"
+            .into(),
+    )
+    .unwrap();
+    println!("{context:?} {x:?}");
+    for s in x {
+        assert!(s.execute(&mut context).is_none(), "no error");
+    }
+    println!("{:?} {:?}", context.get("a"), context.get("b"));
 }

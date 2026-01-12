@@ -67,11 +67,11 @@ pub enum ComparisonOperation {
 }
 
 impl Expression {
-    pub fn evaluate(self, context: &mut Context) -> Result<Value, EvaluationError> {
+    pub fn evaluate(&self, context: &mut Context) -> Result<Value, EvaluationError> {
         match self {
-            Self::Literal(v) => Ok(v),
+            Self::Literal(v) => Ok(v.clone()),
             Self::Operation(op) => op.evaluate(context),
-            Self::Identifier(n) => context.get(&n).map_or_else(
+            Self::Identifier(n) => context.get(n).map_or_else(
                 || Err(EvaluationError),
                 |v| v.borrow().clone().ok_or(EvaluationError),
             ),
@@ -88,11 +88,11 @@ impl Expression {
                 for name in &f.locals {
                     evaluation::declare(&mut new_context, name.clone());
                 }
-                for (name, arg) in f.parameters.iter().zip(args.into_iter()) {
+                for (name, arg) in f.parameters.iter().zip(args) {
                     evaluation::assign(&mut new_context, name, arg.evaluate(context)?);
                 }
 
-                for s in f.body.iter().cloned() {
+                for s in &f.body {
                     s.execute(&mut new_context);
                 }
 
@@ -100,7 +100,7 @@ impl Expression {
             }
             Self::Tuple(elements) => Ok(Value::Tuple(
                 elements
-                    .into_iter()
+                    .iter()
                     .map(|e| e.evaluate(context))
                     .collect::<Result<Vec<Value>, EvaluationError>>()?,
             )),
@@ -146,7 +146,7 @@ impl Expression {
 }
 
 impl Operation {
-    pub fn evaluate(self, context: &mut Context) -> Result<Value, EvaluationError> {
+    pub fn evaluate(&self, context: &mut Context) -> Result<Value, EvaluationError> {
         match self {
             Self::Unary(op, x) => {
                 let x = x.evaluate(context)?;
