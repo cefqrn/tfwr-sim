@@ -1,7 +1,7 @@
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ParseError;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ParseInput<'a> {
     pub enclosure_amount: usize,
     pub indentation: &'a str,

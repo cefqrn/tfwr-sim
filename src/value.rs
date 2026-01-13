@@ -73,6 +73,7 @@ impl TryFrom<&Value> for f64 {
     }
 }
 
+// no Eq since you can get NaN from inf - inf and inf through big number
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -86,8 +87,6 @@ impl PartialEq for Value {
         }
     }
 }
-
-impl Eq for Value {}
 
 impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
