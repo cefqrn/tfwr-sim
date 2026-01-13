@@ -12,52 +12,57 @@ use std::rc::Rc;
 #[derive(Clone, Debug)]
 pub enum Statement {
     Assignment(String, Expression),
-    If(Vec<(Expression, Vec<Statement>)>, Vec<Statement>),
-    Def(Definition),
     Global(String),
-    While(Expression, Vec<Statement>),
+    Def(Definition),
+    If(Vec<(Expression, Block)>, Block),
+    While(Expression, Block),
 }
 
 #[derive(Clone, Debug)]
 pub struct Definition {
     name: String,
     parameters: Vec<String>,
-    body: Vec<Statement>,
+    body: Block,
     locals: HashSet<String>,
     captured: HashSet<String>,
     captured_and_modified: HashSet<String>,
 }
 
+#[derive(Clone, Debug)]
+pub struct Block(Vec<Statement>, Option<EndStatement>);
+
+#[derive(Clone, Debug)]
+pub enum EndStatement {
+    Return(Expression),
+    Continue,
+    Break,
+}
+
+pub enum EndReason {
+    Return(Value),
+    Continue,
+    Break,
+    End,
+}
+
 impl Statement {
-    pub fn execute(&self, context: &mut Context) -> Option<EvaluationError> {
+    pub fn execute(&self, context: &mut Context) -> Result<EndReason, EvaluationError> {
         match self {
-            Self::Assignment(name, value) => match value.evaluate(context) {
-                Ok(value) => {
-                    evaluation::assign(context, name, value);
-                    None
-                }
-                Err(e) => Some(e),
-            },
+            Self::Global(_) => Ok(EndReason::End),
+            Self::Assignment(name, expr) => {
+                let value = expr.evaluate(context)?;
+                evaluation::assign(context, name, value);
+
+                Ok(EndReason::End)
+            }
             Self::If(possibilities, else_) => {
                 for (condition, body) in possibilities {
-                    let condition = match condition.evaluate(context) {
-                        Ok(r) => r.into(),
-                        Err(e) => return Some(e),
-                    };
-
-                    if condition {
-                        for s in body {
-                            s.execute(context);
-                        }
-                        return None;
+                    if condition.evaluate(context)?.into() {
+                        return body.evaluate(context);
                     }
                 }
 
-                for s in else_ {
-                    s.execute(context);
-                }
-
-                None
+                else_.evaluate(context)
             }
             Self::Def(definition) => {
                 let mut base_context = Context::new();
@@ -79,28 +84,67 @@ impl Statement {
 
                 evaluation::assign(context, definition.name.as_str(), value);
 
-                None
+                Ok(EndReason::End)
             }
-            Self::Global(_) => None,
             Self::While(condition, body) => {
-                while {
-                    let condition = match condition.evaluate(context) {
-                        Ok(result) => result,
-                        Err(e) => {
-                            return Some(e);
-                        }
-                    };
-
-                    condition.into()
-                } {
-                    for s in body {
-                        s.execute(context);
+                while condition.evaluate(context)?.into() {
+                    match body.evaluate(context)? {
+                        ret @ EndReason::Return(_) => return Ok(ret),
+                        EndReason::Break => break,
+                        EndReason::Continue | EndReason::End => {}
                     }
                 }
 
-                None
+                Ok(EndReason::End)
             }
         }
+    }
+}
+
+impl Block {
+    pub fn evaluate(&self, context: &mut Context) -> Result<EndReason, EvaluationError> {
+        let Self(body, end_statement) = self;
+        for statement in body {
+            match statement.execute(context)? {
+                r @ (EndReason::Break | EndReason::Continue | EndReason::Return(_)) => {
+                    return Ok(r);
+                }
+                EndReason::End => {}
+            }
+        }
+
+        Ok(match end_statement {
+            Some(EndStatement::Return(expr)) => EndReason::Return(expr.evaluate(context)?),
+            Some(EndStatement::Continue) => EndReason::Continue,
+            Some(EndStatement::Break) => EndReason::Break,
+            None => EndReason::End,
+        })
+    }
+
+    #[must_use]
+    pub const fn empty() -> Self {
+        Self(Vec::new(), None)
+    }
+
+    fn classify_vars(
+        &self,
+        locals: &mut HashSet<String>,
+        captured: &mut HashSet<String>,
+        captured_and_modified: &mut HashSet<String>,
+    ) -> Result<(), ParseError> {
+        let Self(body, end_statement) = self;
+
+        for s in body {
+            classify_vars(s, locals, captured, captured_and_modified)?;
+        }
+
+        if let Some(EndStatement::Return(expr)) = end_statement {
+            for var in expr.identifiers() {
+                see(var, locals, captured, captured_and_modified);
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -154,7 +198,7 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
             let mut possibilities = vec![initial];
             possibilities.extend(elifs);
 
-            Statement::If(possibilities, else_.unwrap_or_else(Vec::new))
+            Statement::If(possibilities, else_.unwrap_or_else(Block::empty))
         });
 
     let while_ = "while"
@@ -174,7 +218,7 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
         .try_parse(input)
 }
 
-pub fn block(input: ParseInput<'_>) -> ParseResult<'_, Vec<Statement>> {
+pub fn block(input: ParseInput<'_>) -> ParseResult<'_, Block> {
     // look ahead to get current indentation
     let (indentation, _) = parsing::spaces.try_parse(input)?;
     let indentation_length = indentation.into_iter().map(char::len_utf8).sum();
@@ -196,7 +240,25 @@ pub fn block(input: ParseInput<'_>) -> ParseResult<'_, Vec<Statement>> {
         ..input
     };
 
-    let (result, input) = statement.any_amount().try_parse(input)?;
+    let ((body, end), input) = statement
+        .any_amount()
+        .and(
+            indentation
+                .before(
+                    "continue"
+                        .map(|_| EndStatement::Continue)
+                        .or("break".map(|_| EndStatement::Break))
+                        .or("return"
+                            .before(parsing::identifier_boundary)
+                            .before(parsing::spaces)
+                            .before(expression::parse)
+                            .map(EndStatement::Return)),
+                )
+                .followed_by(parsing::up_to_next_statement)
+                .and(statement.maybe())
+                .maybe(),
+        )
+        .try_parse(input)?;
 
     // reset indentation
     let input = ParseInput {
@@ -204,10 +266,18 @@ pub fn block(input: ParseInput<'_>) -> ParseResult<'_, Vec<Statement>> {
         ..input
     };
 
-    Ok((result, input))
+    if let Some((end_statement, statement_after_end)) = end {
+        if statement_after_end.is_some() {
+            Err(ParseError)
+        } else {
+            Ok((Block(body, Some(end_statement)), input))
+        }
+    } else {
+        Ok((Block(body, None), input))
+    }
 }
 
-pub fn module(input: ParseInput<'_>) -> ParseResult<'_, (Context, Vec<Statement>)> {
+pub fn module(input: ParseInput<'_>) -> ParseResult<'_, (Context, Block)> {
     let (body, input) = statement.any_amount().try_parse(input)?;
     if !input.fully_consumed {
         Err(ParseError)?;
@@ -237,7 +307,7 @@ pub fn module(input: ParseInput<'_>) -> ParseResult<'_, (Context, Vec<Statement>
         evaluation::declare(&mut context, var);
     }
 
-    Ok(((context, body), input))
+    Ok(((context, Block(body, None)), input))
 }
 
 fn def(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
@@ -267,9 +337,8 @@ fn def(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
 
     let mut captured = HashSet::new();
     let mut captured_and_modified = HashSet::new();
-    for s in &body {
-        classify_vars(s, &mut locals, &mut captured, &mut captured_and_modified)?;
-    }
+
+    body.classify_vars(&mut locals, &mut captured, &mut captured_and_modified)?;
 
     Ok((
         Statement::Def(Definition {
@@ -284,56 +353,56 @@ fn def(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
     ))
 }
 
+fn see(
+    var: String,
+    locals: &HashSet<String>,
+    captured: &mut HashSet<String>,
+    captured_and_modified: &HashSet<String>,
+) {
+    if !locals.contains(&var) && !captured_and_modified.contains(&var) {
+        captured.insert(var);
+    }
+}
+
+fn assign(
+    var: String,
+    locals: &mut HashSet<String>,
+    captured: &HashSet<String>,
+    captured_and_modified: &HashSet<String>,
+) -> Result<(), ParseError> {
+    if captured.contains(&var) {
+        return Err(ParseError);
+    }
+
+    if !captured_and_modified.contains(&var) {
+        locals.insert(var);
+    }
+
+    Ok(())
+}
+
+fn global(
+    var: String,
+    locals: &HashSet<String>,
+    captured: &mut HashSet<String>,
+    captured_and_modified: &mut HashSet<String>,
+) -> Result<(), ParseError> {
+    if locals.contains(&var) {
+        return Err(ParseError);
+    }
+
+    captured.remove(&var);
+    captured_and_modified.insert(var);
+
+    Ok(())
+}
+
 fn classify_vars(
     statement: &Statement,
     locals: &mut HashSet<String>,
     captured: &mut HashSet<String>,
     captured_and_modified: &mut HashSet<String>,
 ) -> Result<(), ParseError> {
-    fn see(
-        var: String,
-        locals: &HashSet<String>,
-        captured: &mut HashSet<String>,
-        captured_and_modified: &HashSet<String>,
-    ) {
-        if !locals.contains(&var) && !captured_and_modified.contains(&var) {
-            captured.insert(var);
-        }
-    }
-
-    fn assign(
-        var: String,
-        locals: &mut HashSet<String>,
-        captured: &HashSet<String>,
-        captured_and_modified: &HashSet<String>,
-    ) -> Result<(), ParseError> {
-        if captured.contains(&var) {
-            return Err(ParseError);
-        }
-
-        if !captured_and_modified.contains(&var) {
-            locals.insert(var);
-        }
-
-        Ok(())
-    }
-
-    fn global(
-        var: String,
-        locals: &HashSet<String>,
-        captured: &mut HashSet<String>,
-        captured_and_modified: &mut HashSet<String>,
-    ) -> Result<(), ParseError> {
-        if locals.contains(&var) {
-            return Err(ParseError);
-        }
-
-        captured.remove(&var);
-        captured_and_modified.insert(var);
-
-        Ok(())
-    }
-
     match statement {
         Statement::Assignment(name, expr) => {
             for var in expr.identifiers() {
@@ -370,23 +439,17 @@ fn classify_vars(
                     see(var, locals, captured, captured_and_modified);
                 }
 
-                for s in body {
-                    classify_vars(s, locals, captured, captured_and_modified)?;
-                }
+                body.classify_vars(locals, captured, captured_and_modified)?;
             }
 
-            for s in else_ {
-                classify_vars(s, locals, captured, captured_and_modified)?;
-            }
+            else_.classify_vars(locals, captured, captured_and_modified)?;
         }
         Statement::While(condition, body) => {
             for var in condition.identifiers() {
                 see(var, locals, captured, captured_and_modified);
             }
 
-            for s in body {
-                classify_vars(s, locals, captured, captured_and_modified)?;
-            }
+            body.classify_vars(locals, captured, captured_and_modified)?;
         }
     }
 

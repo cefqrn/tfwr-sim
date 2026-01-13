@@ -263,9 +263,9 @@ pub fn identifier_string(input: ParseInput<'_>) -> ParseResult<'_, String> {
 
 pub fn assignable(input: ParseInput<'_>) -> ParseResult<'_, String> {
     let (name, input) = identifier_string.try_parse(input)?;
-
     match name.as_str() {
-        "True" | "False" | "None" | "and" | "or" | "if" | "def" | "global" => Err(ParseError),
+        "True" | "False" | "None" | "and" | "or" | "if" | "def" | "global" | "continue"
+        | "break" | "return" => Err(ParseError),
         _ => Ok((name, input)),
     }
 }

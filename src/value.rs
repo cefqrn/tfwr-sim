@@ -1,6 +1,6 @@
 use crate::evaluation::{Context, EvaluationError};
 use crate::parsing;
-use crate::statement::Statement;
+use crate::statement::Block;
 use parsing::{ParseError, ParseInput, ParseResult, Parser, Predicate};
 
 use std::cmp::Ordering;
@@ -20,7 +20,7 @@ pub enum Value {
 #[derive(Clone, Debug)]
 pub struct Closure {
     pub parameters: Vec<String>,
-    pub body: Vec<Statement>,
+    pub body: Block,
     pub base_context: Context,
     pub locals: HashSet<String>,
 }

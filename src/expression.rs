@@ -1,5 +1,6 @@
 use crate::evaluation;
 use crate::parsing;
+use crate::statement::EndReason;
 use crate::value;
 use evaluation::{Context, EvaluationError};
 use parsing::{ParseInput, ParseResult, Parser};
@@ -92,11 +93,13 @@ impl Expression {
                     evaluation::assign(&mut new_context, name, arg.evaluate(context)?);
                 }
 
-                for s in &f.body {
-                    s.execute(&mut new_context);
-                }
-
-                Ok(Value::None)
+                f.body.evaluate(&mut new_context).map(|x| {
+                    if let EndReason::Return(v) = x {
+                        v
+                    } else {
+                        Value::None
+                    }
+                })
             }
             Self::Tuple(elements) => Ok(Value::Tuple(
                 elements

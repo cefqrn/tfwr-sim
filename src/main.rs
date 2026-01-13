@@ -138,7 +138,7 @@ fn main() {
     let (x, _) = statement::statement.try_parse("pizza = 5".into()).unwrap();
     evaluation::declare(&mut context, "pizza".to_owned());
     println!("{context:?} {x:?}");
-    x.execute(&mut context);
+    assert!(x.execute(&mut context).is_ok());
     println!("{context:?}");
 
     let ((mut context, x), _) = statement::module
@@ -156,9 +156,7 @@ d = a * -b + c
         )
         .unwrap();
     println!("{context:?} {x:?}");
-    for statement in x {
-        statement.execute(&mut context);
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{context:?}");
 
     println!("{:?}", statement::statement.try_parse("None = 5".into()));
@@ -195,9 +193,7 @@ if 0:
         )
         .unwrap();
     println!("{context:?} {x:?}");
-    for statement in x {
-        statement.execute(&mut context);
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{context:?}");
 
     let ((mut context, x), _) = statement::module
@@ -243,9 +239,7 @@ else:
         )
         .unwrap();
     println!("{context:?} {x:?}");
-    for statement in x {
-        statement.execute(&mut context);
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{context:?}");
 
     println!("{:?}", statement::module.try_parse("x = 1 y = 2".into()));
@@ -263,9 +257,7 @@ n = 5
         .unwrap();
 
     println!("{context:?} {x:?}");
-    for s in x {
-        s.execute(&mut context);
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{context:?}");
 
     let (x, _) = statement::statement.try_parse("x = x + 1".into()).unwrap();
@@ -273,9 +265,9 @@ n = 5
     evaluation::declare(&mut context, "x".to_owned());
     evaluation::assign(&mut context, "x", Value::Number(1.));
     println!("{context:?} {x:?}");
-    x.clone().execute(&mut context);
+    assert!(x.execute(&mut context).is_ok());
     println!("{context:?}");
-    x.execute(&mut context);
+    assert!(x.execute(&mut context).is_ok());
     println!("{context:?}");
 
     let ((context, x), _) = statement::module
@@ -309,9 +301,7 @@ _ = f()
         )
         .unwrap();
     println!("{context:?} {x:?}");
-    for s in x {
-        s.execute(&mut context);
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{:?} {:?}", context.get("a"), context.get("b"));
 
     let ((mut context, x), _) = statement::module
@@ -330,9 +320,7 @@ _ = f(0, 1)
         )
         .unwrap();
     println!("{context:?} {x:?}");
-    for s in x {
-        s.execute(&mut context);
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{:?}", context.get("result"));
 
     let ((mut context, x), _) = statement::module
@@ -351,9 +339,7 @@ _ = f()
         )
         .unwrap();
     println!("{context:?} {x:?}");
-    for s in x {
-        s.execute(&mut context);
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{:?}", context.get("x"));
 
     let ((mut context, x), _) = statement::module(
@@ -367,9 +353,7 @@ _ = 5 or f(6)"
     )
     .unwrap();
     println!("{context:?} {x:?}");
-    for s in x {
-        s.execute(&mut context);
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{:?}", context.get("side_effect"));
 
     let ((mut context, x), _) = statement::module(
@@ -383,9 +367,7 @@ _ = 5 and f(6)"
     )
     .unwrap();
     println!("{context:?} {x:?}");
-    for s in x {
-        s.execute(&mut context);
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{:?}", context.get("side_effect"));
 
     let ((mut context, x), _) = statement::module(
@@ -402,9 +384,7 @@ _ = f(0, 1)"
     )
     .unwrap();
     println!("{context:?} {x:?}");
-    for s in x {
-        s.execute(&mut context);
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{:?}", context.get("result"));
 
     let ((mut context, x), _) = statement::module(
@@ -418,36 +398,26 @@ b = \"pineapple\" != \"pizza\""
     )
     .unwrap();
     println!("{context:?} {x:?}");
-    for s in x {
-        assert!(s.execute(&mut context).is_none(), "no error");
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{:?} {:?}", context.get("a"), context.get("b"));
 
     let ((mut context, x), _) = statement::module("a = 5 < \"\"".into()).unwrap();
     println!("{x:?}");
-    for s in x {
-        assert!(s.execute(&mut context).is_some(), "errors");
-    }
+    assert!(x.evaluate(&mut context).is_err());
 
     let ((mut context, x), _) = statement::module("a = -5 % 3".into()).unwrap();
     println!("{x:?}");
-    for s in x {
-        s.execute(&mut context);
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{context:?}");
 
     let ((mut context, x), _) = statement::module("a = -5//3".into()).unwrap();
     println!("{x:?}");
-    for s in x {
-        s.execute(&mut context);
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{context:?}");
 
     let ((mut context, x), _) = statement::module("a = -2**-3**-4".into()).unwrap();
     println!("{x:?}");
-    for s in x {
-        s.execute(&mut context);
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{context:?}");
 
     let ((mut context, x), _) = statement::module(
@@ -467,9 +437,7 @@ d = f != g"
     )
     .unwrap();
     println!("{context:?} {x:?}");
-    for s in x {
-        assert!(s.execute(&mut context).is_none(), "no error");
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!(
         "{:?} {:?} {:?} {:?}",
         context.get("a"),
@@ -489,9 +457,7 @@ e = 1, 2"
     )
     .unwrap();
     println!("{context:?} {x:?}");
-    for s in x {
-        assert!(s.execute(&mut context).is_none(), "no error");
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!(
         "{:?} {:?} {:?} {:?} {:?}",
         context.get("a"),
@@ -534,8 +500,22 @@ while b < 1000:
     )
     .unwrap();
     println!("{context:?} {x:?}");
-    for s in x {
-        assert!(s.execute(&mut context).is_none(), "no error");
-    }
+    assert!(x.evaluate(&mut context).is_ok());
     println!("{:?} {:?}", context.get("a"), context.get("b"));
+
+    let ((mut context, x), _) = statement::module(
+        "
+def f(a, b):
+    if b >= 1000:
+        return b
+    else:
+        return f(b, a+b)
+
+result = f(0, 1)"
+            .into(),
+    )
+    .unwrap();
+    println!("{context:?} {x:?}");
+    assert!(x.evaluate(&mut context).is_ok());
+    println!("{:?}", context.get("result"));
 }
