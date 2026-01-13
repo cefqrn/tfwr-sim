@@ -237,13 +237,13 @@ impl Operation {
 }
 
 pub fn parse(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
-    let tuple = {
+    let nonempty_tuple = {
         element
             .followed_by(parsing::whitespace)
             .followed_by(',')
             .and(
                 parsing::whitespace
-                    .before(parse)
+                    .before(element)
                     .followed_by(parsing::whitespace.followed_by(',').maybe())
                     .any_amount(),
             )
@@ -255,7 +255,7 @@ pub fn parse(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
             .or(element)
     };
 
-    tuple.try_parse(input)
+    nonempty_tuple.try_parse(input)
 }
 
 fn element(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
@@ -379,8 +379,11 @@ fn primary(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
 fn enclosed(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
     parsing::open_paren
         .before(parsing::whitespace)
-        .before(parse)
-        .followed_by(parsing::whitespace)
+        .before(
+            parse
+                .followed_by(parsing::whitespace)
+                .or(parsing::nothing.map(|()| Expression::Tuple(Vec::new()))),
+        )
         .followed_by(parsing::close_paren)
         .try_parse(input)
 }
