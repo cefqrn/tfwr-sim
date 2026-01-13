@@ -78,6 +78,7 @@ impl TryFrom<&Value> for f64 {
 // no Eq since you can get NaN from inf - inf and inf through big number
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
+        println!("comparing {self:?} {other:?}");
         match (self, other) {
             (Self::String(l0), Self::String(r0)) => l0 == r0,
             (Self::Number(_) | Self::Bool(_), Self::Number(_) | Self::Bool(_)) => {
@@ -85,6 +86,7 @@ impl PartialEq for Value {
             }
             (Self::Function(a), Self::Function(b)) => Rc::ptr_eq(a, b),
             (Self::Tuple(a), Self::Tuple(b)) => a == b,
+            (Self::None, Self::None) => true,
             _ => false,
         }
     }
@@ -101,6 +103,7 @@ impl PartialOrd for Value {
             }
             (Self::Function(a), Self::Function(b)) => Rc::ptr_eq(a, b).then_some(Ordering::Equal),
             (Self::Tuple(a), Self::Tuple(b)) => a.partial_cmp(b),
+            (Self::None, Self::None) => Some(Ordering::Equal),
             _ => None,
         }
     }

@@ -664,6 +664,48 @@ f()()()
             assert_eq!(Value::Number(2.), context.get("y").unwrap().take().unwrap());
             assert_eq!(Value::Number(3.), context.get("z").unwrap().take().unwrap());
         }
+
+        #[test]
+        fn passing_functions_as_args() {
+            let ((mut context, x), _) = statement::module
+                .try_parse(
+                    "
+def map(f, s):
+    if s:
+        x, s = s
+        return f(x), map(f, s)
+
+    return s
+
+def add(x, y):
+    return x + y
+
+def partial2_1(f, x):
+    def inner(y):
+        return f(x, y)
+
+    return inner
+
+s = 1, (2, (3, None))
+s = map(partial2_1(add, 5), s)
+"
+                    .into(),
+                )
+                .unwrap();
+
+            println!("{context:?}\n{x:?}");
+            assert!(x.evaluate(&mut context).is_ok());
+            assert_eq!(
+                Value::Tuple(vec![
+                    Value::Number(6.),
+                    Value::Tuple(vec![
+                        Value::Number(7.),
+                        Value::Tuple(vec![Value::Number(8.), Value::None])
+                    ])
+                ]),
+                context.get("s").unwrap().take().unwrap()
+            );
+        }
     }
 
     mod refuses {
