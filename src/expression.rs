@@ -284,7 +284,7 @@ fn element(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
         let lt = "<".map_to(ComparisonOperation::Lt);
         let ne = "!=".map_to(ComparisonOperation::Ne);
 
-        let op = eq.or(gt).or(ge).or(lt).or(le).or(ne);
+        let op = eq.or(ge).or(gt).or(le).or(lt).or(ne);
 
         // no chaining
         add_sub
