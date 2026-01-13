@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 #[derive(Clone, Debug)]
 pub enum Statement {
-    Assignment(String, Expression),
+    Assignment(AssignmentTarget, Expression),
     Global(String),
     Def(Definition),
     If(Vec<(Expression, Block)>, Block),
@@ -26,6 +26,12 @@ pub struct Definition {
     locals: HashSet<String>,
     captured: HashSet<String>,
     captured_and_modified: HashSet<String>,
+}
+
+#[derive(Clone, Debug)]
+pub enum AssignmentTarget {
+    Single(String),
+    Multiple(Vec<AssignmentTarget>),
 }
 
 #[derive(Clone, Debug)]
@@ -51,7 +57,7 @@ impl Statement {
             Self::Global(_) => Ok(EndReason::End),
             Self::Assignment(name, expr) => {
                 let value = expr.evaluate(context)?;
-                evaluation::assign(context, name, value);
+                name.assign(context, value)?;
 
                 Ok(EndReason::End)
             }
@@ -148,13 +154,61 @@ impl Block {
     }
 }
 
+impl AssignmentTarget {
+    fn assign(&self, context: &mut Context, value: Value) -> Result<(), EvaluationError> {
+        match (self, value) {
+            (Self::Single(name), value) => evaluation::assign(context, name, value),
+            (Self::Multiple(targets), Value::Tuple(values)) if targets.len() == values.len() => {
+                for (name, value) in targets.iter().zip(values) {
+                    name.assign(context, value)?;
+                }
+            }
+            _ => Err(EvaluationError)?,
+        }
+
+        Ok(())
+    }
+
+    fn parse(input: ParseInput<'_>) -> ParseResult<'_, Self> {
+        fn element(input: ParseInput<'_>) -> ParseResult<'_, AssignmentTarget> {
+            parsing::open_paren
+                .before(parsing::whitespace)
+                .before(
+                    AssignmentTarget::parse
+                        .followed_by(parsing::whitespace)
+                        .or(parsing::nothing.map(|()| AssignmentTarget::Multiple(Vec::new()))),
+                )
+                .followed_by(parsing::close_paren)
+                .or(parsing::assignable.map(AssignmentTarget::Single))
+                .try_parse(input)
+        }
+
+        element
+            .followed_by(parsing::whitespace)
+            .followed_by(',')
+            .and(
+                parsing::whitespace
+                    .before(element)
+                    .followed_by(parsing::whitespace.followed_by(',').maybe())
+                    .any_amount(),
+            )
+            .map(|(fst, rest)| {
+                let mut result = vec![fst];
+                result.extend(rest);
+                Self::Multiple(result)
+            })
+            .or(element)
+            .try_parse(input)
+    }
+}
+
 pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
-    let assignment = parsing::assignable
+    let assignment = AssignmentTarget::parse
         .followed_by(parsing::spaces)
         .followed_by('=')
         .followed_by(parsing::spaces)
         .and(expression::parse)
-        .map(|(name, value)| Statement::Assignment(name, value));
+        .map(|(target, value)| Statement::Assignment(target, value));
 
     let global = "global"
         .before(parsing::spaces)
@@ -404,12 +458,32 @@ fn classify_vars(
     captured_and_modified: &mut HashSet<String>,
 ) -> Result<(), ParseError> {
     match statement {
-        Statement::Assignment(name, expr) => {
+        Statement::Assignment(target, expr) => {
+            fn assign_target(
+                target: &AssignmentTarget,
+                locals: &mut HashSet<String>,
+                captured: &mut HashSet<String>,
+                captured_and_modified: &mut HashSet<String>,
+            ) -> Result<(), ParseError> {
+                match target {
+                    AssignmentTarget::Single(name) => {
+                        assign(name.to_owned(), locals, captured, captured_and_modified)
+                    }
+                    AssignmentTarget::Multiple(targets) => {
+                        for target in targets {
+                            assign_target(target, locals, captured, captured_and_modified)?;
+                        }
+
+                        Ok(())
+                    }
+                }
+            }
+
             for var in expr.identifiers() {
                 see(var, locals, captured, captured_and_modified);
             }
 
-            assign(name.to_owned(), locals, captured, captured_and_modified)?;
+            assign_target(target, locals, captured, captured_and_modified)?;
         }
         Statement::Def(definition) => {
             // assign name first to allow for recursion

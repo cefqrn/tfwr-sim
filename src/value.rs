@@ -31,6 +31,7 @@ impl From<Value> for bool {
             Value::Bool(b) => b,
             Value::Number(n) => n != 0.,
             Value::Tuple(e) => !e.is_empty(),
+            Value::None => false,
             _ => true,
         }
     }
@@ -42,6 +43,7 @@ impl From<&Value> for bool {
             Value::Bool(b) => *b,
             Value::Number(n) => *n != 0.,
             Value::Tuple(e) => !e.is_empty(),
+            Value::None => false,
             _ => true,
         }
     }

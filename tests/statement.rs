@@ -480,6 +480,96 @@ result = f(0, 1)
                 context.get("result").unwrap().take().unwrap()
             );
         }
+
+        #[test]
+        fn unit_assignment() {
+            let ((mut context, x), _) = statement::module.try_parse("() = ()".into()).unwrap();
+
+            println!("{context:?}\n{x:?}");
+            assert!(x.evaluate(&mut context).is_ok());
+        }
+
+        #[test]
+        fn unenclosed_1_tuple_assignment() {
+            let ((mut context, x), _) = statement::module.try_parse("x, = 1,".into()).unwrap();
+
+            println!("{context:?}\n{x:?}");
+            assert!(x.evaluate(&mut context).is_ok());
+            assert_eq!(Value::Number(1.), context.get("x").unwrap().take().unwrap());
+        }
+
+        #[test]
+        fn unenclosed_2_tuple_assignment() {
+            let ((mut context, x), _) = statement::module.try_parse("x, y = 1, 2".into()).unwrap();
+
+            println!("{context:?}\n{x:?}");
+            assert!(x.evaluate(&mut context).is_ok());
+            assert_eq!(Value::Number(1.), context.get("x").unwrap().take().unwrap());
+            assert_eq!(Value::Number(2.), context.get("y").unwrap().take().unwrap());
+        }
+
+        #[test]
+        fn enclosed_1_tuple_assignment() {
+            let ((mut context, x), _) = statement::module.try_parse("(x,) = 1,".into()).unwrap();
+
+            println!("{context:?}\n{x:?}");
+            assert!(x.evaluate(&mut context).is_ok());
+            assert_eq!(Value::Number(1.), context.get("x").unwrap().take().unwrap());
+        }
+
+        #[test]
+        fn enclosed_2_tuple_assignment() {
+            let ((mut context, x), _) =
+                statement::module.try_parse("(x, y) = 1, 2".into()).unwrap();
+
+            println!("{context:?}\n{x:?}");
+            assert!(x.evaluate(&mut context).is_ok());
+            assert_eq!(Value::Number(1.), context.get("x").unwrap().take().unwrap());
+            assert_eq!(Value::Number(2.), context.get("y").unwrap().take().unwrap());
+        }
+
+        #[test]
+        fn tuple_stack() {
+            let ((mut context, x), _) = statement::module
+                .try_parse(
+                    "
+x = 1, (2, (3, (4, None)))
+while x:
+    curr, x = x
+"
+                    .into(),
+                )
+                .unwrap();
+
+            println!("{context:?}\n{x:?}");
+            assert!(x.evaluate(&mut context).is_ok());
+            assert_eq!(
+                Value::Number(4.),
+                context.get("curr").unwrap().take().unwrap()
+            );
+        }
+
+        #[test]
+        fn nested_destructuring() {
+            let ((mut context, x), _) = statement::module
+                .try_parse(
+                    "
+z = (3, 4), (5, 6)
+(x, y), p = z
+"
+                    .into(),
+                )
+                .unwrap();
+
+            println!("{context:?}\n{x:?}");
+            assert!(x.evaluate(&mut context).is_ok());
+            assert_eq!(Value::Number(3.), context.get("x").unwrap().take().unwrap());
+            assert_eq!(Value::Number(4.), context.get("y").unwrap().take().unwrap());
+            assert_eq!(
+                Value::Tuple(vec![Value::Number(5.), Value::Number(6.)]),
+                context.get("p").unwrap().take().unwrap()
+            );
+        }
     }
 
     mod refuses {
