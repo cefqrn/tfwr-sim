@@ -621,6 +621,49 @@ f()
             assert!(x.evaluate(&mut context).is_ok());
             assert_eq!(Value::Number(5.), context.get("k").unwrap().take().unwrap());
         }
+
+        #[test]
+        fn returning_functions() {
+            let ((mut context, x), _) = statement::module
+                .try_parse(
+                    "
+a = 0
+def f():
+    global x
+    global y
+    global z
+    global a
+    a = a + 1
+    x = a
+    def g():
+        global y
+        global z
+        global a
+        a = a + 1
+        y = a
+        def h():
+            global z
+            global a
+            a = a + 1
+            z = a
+
+        return h
+
+    return g
+
+f()()()
+"
+                    .into(),
+                )
+                .unwrap();
+
+            println!("{context:?}\n{x:?}");
+            assert!(x.evaluate(&mut context).is_ok());
+            assert_eq!(Value::Number(3.), context.get("a").unwrap().take().unwrap());
+            assert_eq!(Value::Number(1.), context.get("x").unwrap().take().unwrap());
+            assert_eq!(Value::Number(2.), context.get("y").unwrap().take().unwrap());
+            assert_eq!(Value::Number(3.), context.get("z").unwrap().take().unwrap());
+        }
     }
 
     mod refuses {
