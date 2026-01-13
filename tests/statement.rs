@@ -601,6 +601,26 @@ for fn in f, g, h:
             assert_eq!(Value::Number(2.), context.get("y").unwrap().take().unwrap());
             assert_eq!(Value::Number(3.), context.get("z").unwrap().take().unwrap());
         }
+
+        #[test]
+        fn bare_call() {
+            let ((mut context, x), _) = statement::module
+                .try_parse(
+                    "
+def f():
+    global k
+    k = 5
+
+f()
+"
+                    .into(),
+                )
+                .unwrap();
+
+            println!("{context:?}\n{x:?}");
+            assert!(x.evaluate(&mut context).is_ok());
+            assert_eq!(Value::Number(5.), context.get("k").unwrap().take().unwrap());
+        }
     }
 
     mod refuses {

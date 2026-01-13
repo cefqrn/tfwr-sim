@@ -76,31 +76,7 @@ impl Expression {
                 || Err(EvaluationError),
                 |v| v.borrow().clone().ok_or(EvaluationError),
             ),
-            Self::Call(Call(f, args)) => {
-                let Value::Function(f) = f.evaluate(context)? else {
-                    return Err(EvaluationError);
-                };
-
-                if args.len() != f.parameters.len() {
-                    return Err(EvaluationError);
-                }
-
-                let mut new_context = f.base_context.clone();
-                for name in &f.locals {
-                    evaluation::declare(&mut new_context, name.clone());
-                }
-                for (name, arg) in f.parameters.iter().zip(args) {
-                    evaluation::assign(&mut new_context, name, arg.evaluate(context)?);
-                }
-
-                f.body.evaluate(&mut new_context).map(|x| {
-                    if let EndReason::Return(v) = x {
-                        v
-                    } else {
-                        Value::None
-                    }
-                })
-            }
+            Self::Call(call) => call.evaluate(context),
             Self::Tuple(elements) => Ok(Value::Tuple(
                 elements
                     .iter()
@@ -145,6 +121,65 @@ impl Expression {
                 }
             }
         }
+    }
+}
+
+impl Call {
+    pub fn parse(input: ParseInput<'_>) -> ParseResult<'_, Self> {
+        let (f, input) = primary.try_parse(input)?;
+        let ((initial_args, remaining_arg_lists), input) = parsing::whitespace
+            .before(args)
+            .at_least_one()
+            .try_parse(input)?;
+
+        let result = remaining_arg_lists
+            .into_iter()
+            .fold(Self(Box::new(f), initial_args), |acc, args| {
+                Self(Box::new(Expression::Call(acc)), args)
+            });
+
+        Ok((result, input))
+    }
+
+    pub fn evaluate(&self, context: &mut Context) -> Result<Value, EvaluationError> {
+        let Self(f, args) = self;
+
+        let Value::Function(f) = f.evaluate(context)? else {
+            return Err(EvaluationError);
+        };
+
+        if args.len() != f.parameters.len() {
+            return Err(EvaluationError);
+        }
+
+        let mut new_context = f.base_context.clone();
+        for name in &f.locals {
+            evaluation::declare(&mut new_context, name.clone());
+        }
+        for (name, arg) in f.parameters.iter().zip(args) {
+            evaluation::assign(&mut new_context, name, arg.evaluate(context)?);
+        }
+
+        f.body.evaluate(&mut new_context).map(|x| {
+            if let EndReason::Return(v) = x {
+                v
+            } else {
+                Value::None
+            }
+        })
+    }
+
+    #[must_use]
+    pub fn identifiers(&self) -> HashSet<String> {
+        let Self(f, args) = self;
+
+        let mut result = HashSet::new();
+        f.identifiers_inner(&mut result);
+        for arg in args {
+            arg.identifiers_inner(&mut result);
+        }
+
+        result
     }
 }
 
@@ -356,6 +391,8 @@ fn pos_neg<'a>(atom: impl Parser<'a, Expression>) -> impl Parser<'a, Expression>
 }
 
 fn exp(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
+    let call = Call::parse.map(Expression::Call).or(primary);
+
     // right associative
     call.followed_by(parsing::whitespace)
         .followed_by("**")
@@ -406,20 +443,6 @@ fn args(input: ParseInput<'_>) -> ParseResult<'_, Vec<Expression>> {
         .followed_by(parsing::whitespace)
         .followed_by(parsing::close_paren)
         .try_parse(input)
-}
-
-fn call(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
-    let (result, input) = primary.try_parse(input)?;
-    let (calls, input) = parsing::whitespace
-        .before(args)
-        .any_amount()
-        .try_parse(input)?;
-
-    let result = calls.into_iter().fold(result, |acc, args| {
-        Expression::Call(Call(Box::new(acc), args))
-    });
-
-    Ok((result, input))
 }
 
 fn identifier(input: ParseInput<'_>) -> ParseResult<'_, Expression> {

@@ -3,7 +3,7 @@ use crate::expression;
 use crate::parsing;
 use crate::value::{Closure, Value};
 use evaluation::{Context, EvaluationError};
-use expression::Expression;
+use expression::{Call, Expression};
 use parsing::{ParseError, ParseInput, ParseResult, Parser};
 
 use std::collections::HashSet;
@@ -13,6 +13,7 @@ use std::rc::Rc;
 pub enum Statement {
     Assignment(AssignmentTarget, Expression),
     Global(String),
+    Call(Call),
     Def(Definition),
     If(Vec<(Expression, Block)>, Block),
     While(Expression, Block),
@@ -60,6 +61,10 @@ impl Statement {
                 let value = expr.evaluate(context)?;
                 name.assign(context, value)?;
 
+                Ok(EndReason::End)
+            }
+            Self::Call(call) => {
+                call.evaluate(context)?;
                 Ok(EndReason::End)
             }
             Self::If(possibilities, else_) => {
@@ -255,6 +260,7 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
 
     let single_line = assignment
         .or(global)
+        .or(Call::parse.map(Statement::Call))
         .followed_by(parsing::up_to_next_statement);
 
     let if_ = "if"
@@ -515,6 +521,11 @@ fn classify_vars(
             }
 
             target.mark_assigned(locals, captured, captured_and_modified)?;
+        }
+        Statement::Call(call) => {
+            for var in call.identifiers() {
+                see(var, locals, captured, captured_and_modified);
+            }
         }
         Statement::Def(definition) => {
             // assign name first to allow for recursion
