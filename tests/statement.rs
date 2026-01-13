@@ -570,6 +570,37 @@ z = (3, 4), (5, 6)
                 context.get("p").unwrap().take().unwrap()
             );
         }
+
+        #[test]
+        fn for_loop() {
+            let ((mut context, x), _) = statement::module
+                .try_parse(
+                    "
+def f():
+    global x
+    x = 1
+
+def g():
+    global y
+    y = 2
+
+def h():
+    global z
+    z = 3
+
+for fn in f, g, h:
+    _ = fn()
+"
+                    .into(),
+                )
+                .unwrap();
+
+            println!("{context:?}\n{x:?}");
+            assert!(x.evaluate(&mut context).is_ok());
+            assert_eq!(Value::Number(1.), context.get("x").unwrap().take().unwrap());
+            assert_eq!(Value::Number(2.), context.get("y").unwrap().take().unwrap());
+            assert_eq!(Value::Number(3.), context.get("z").unwrap().take().unwrap());
+        }
     }
 
     mod refuses {

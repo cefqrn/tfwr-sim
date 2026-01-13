@@ -16,6 +16,7 @@ pub enum Statement {
     Def(Definition),
     If(Vec<(Expression, Block)>, Block),
     While(Expression, Block),
+    For(AssignmentTarget, Expression, Block),
 }
 
 #[derive(Clone, Debug)]
@@ -103,6 +104,25 @@ impl Statement {
 
                 Ok(EndReason::End)
             }
+            Self::For(target, expr, body) => match expr.evaluate(context)? {
+                Value::Tuple(values) => {
+                    for value in values {
+                        target.assign(context, value)?;
+                        match body.evaluate(context)? {
+                            ret @ EndReason::Return(_) => return Ok(ret),
+                            EndReason::Break => break,
+                            EndReason::Continue | EndReason::End => {}
+                        }
+                    }
+
+                    Ok(EndReason::End)
+                }
+                Value::None
+                | Value::String(_)
+                | Value::Number(_)
+                | Value::Bool(_)
+                | Value::Function(_) => Err(EvaluationError),
+            },
         }
     }
 }
@@ -200,6 +220,24 @@ impl AssignmentTarget {
             .or(element)
             .try_parse(input)
     }
+
+    fn mark_assigned(
+        &self,
+        locals: &mut HashSet<String>,
+        captured: &mut HashSet<String>,
+        captured_and_modified: &mut HashSet<String>,
+    ) -> Result<(), ParseError> {
+        match self {
+            Self::Single(name) => assign(name.to_owned(), locals, captured, captured_and_modified),
+            Self::Multiple(targets) => {
+                for target in targets {
+                    target.mark_assigned(locals, captured, captured_and_modified)?;
+                }
+
+                Ok(())
+            }
+        }
+    }
 }
 
 pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
@@ -264,7 +302,20 @@ pub fn statement(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
         .and(block)
         .map(|(condition, body)| Statement::While(condition, body));
 
-    let multi_line = if_.or(def).or(while_);
+    let for_ = "for"
+        .before(parsing::spaces)
+        .before(AssignmentTarget::parse)
+        .followed_by(parsing::spaces)
+        .followed_by("in")
+        .followed_by(parsing::spaces)
+        .and(expression::parse)
+        .followed_by(parsing::spaces)
+        .followed_by(':')
+        .followed_by(parsing::up_to_next_statement)
+        .and(block)
+        .map(|((target, expr), body)| Statement::For(target, expr, body));
+
+    let multi_line = if_.or(def).or(while_).or(for_);
 
     input
         .indentation
@@ -459,31 +510,11 @@ fn classify_vars(
 ) -> Result<(), ParseError> {
     match statement {
         Statement::Assignment(target, expr) => {
-            fn assign_target(
-                target: &AssignmentTarget,
-                locals: &mut HashSet<String>,
-                captured: &mut HashSet<String>,
-                captured_and_modified: &mut HashSet<String>,
-            ) -> Result<(), ParseError> {
-                match target {
-                    AssignmentTarget::Single(name) => {
-                        assign(name.to_owned(), locals, captured, captured_and_modified)
-                    }
-                    AssignmentTarget::Multiple(targets) => {
-                        for target in targets {
-                            assign_target(target, locals, captured, captured_and_modified)?;
-                        }
-
-                        Ok(())
-                    }
-                }
-            }
-
             for var in expr.identifiers() {
                 see(var, locals, captured, captured_and_modified);
             }
 
-            assign_target(target, locals, captured, captured_and_modified)?;
+            target.mark_assigned(locals, captured, captured_and_modified)?;
         }
         Statement::Def(definition) => {
             // assign name first to allow for recursion
@@ -522,6 +553,15 @@ fn classify_vars(
             for var in condition.identifiers() {
                 see(var, locals, captured, captured_and_modified);
             }
+
+            body.classify_vars(locals, captured, captured_and_modified)?;
+        }
+        Statement::For(target, expr, body) => {
+            for var in expr.identifiers() {
+                see(var, locals, captured, captured_and_modified);
+            }
+
+            target.mark_assigned(locals, captured, captured_and_modified)?;
 
             body.classify_vars(locals, captured, captured_and_modified)?;
         }
