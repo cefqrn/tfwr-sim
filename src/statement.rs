@@ -2,11 +2,12 @@ use crate::evaluation;
 use crate::expression;
 use crate::parsing;
 use crate::value::{Closure, Value};
+use crate::variable::VariableState;
 use evaluation::{Context, EvaluationError};
 use expression::{Call, Expression};
 use parsing::{ParseError, ParseInput, ParseResult, Parser};
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Clone, Debug)]
@@ -25,9 +26,9 @@ pub struct Definition {
     name: String,
     parameters: Vec<String>,
     body: Block,
-    locals: HashSet<String>,
-    captured: HashSet<String>,
-    captured_and_modified: HashSet<String>,
+    locals: Vec<String>,
+    captured: Vec<String>,
+    captured_and_modified: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -94,7 +95,7 @@ impl Statement {
                     locals: definition.locals.clone(),
                 }));
 
-                evaluation::assign(context, definition.name.as_str(), value);
+                evaluation::assign(context, definition.name.clone(), value);
 
                 Ok(EndReason::End)
             }
@@ -159,19 +160,17 @@ impl Block {
 
     fn classify_vars(
         &self,
-        locals: &mut HashSet<String>,
-        captured: &mut HashSet<String>,
-        captured_and_modified: &mut HashSet<String>,
+        variables: &mut HashMap<String, VariableState>,
     ) -> Result<(), ParseError> {
         let Self(body, end_statement) = self;
 
         for s in body {
-            classify_vars(s, locals, captured, captured_and_modified)?;
+            classify_vars(s, variables)?;
         }
 
         if let Some(EndStatement::Return(expr)) = end_statement {
-            for var in expr.identifiers() {
-                see(var, locals, captured, captured_and_modified);
+            for identifier in expr.identifiers() {
+                variables.entry(identifier).or_default();
             }
         }
 
@@ -182,7 +181,7 @@ impl Block {
 impl AssignmentTarget {
     fn assign(&self, context: &mut Context, value: Value) -> Result<(), EvaluationError> {
         match (self, value) {
-            (Self::Single(name), value) => evaluation::assign(context, name, value),
+            (Self::Single(name), value) => evaluation::assign(context, name.clone(), value),
             (Self::Multiple(targets), Value::Tuple(values)) if targets.len() == values.len() => {
                 for (name, value) in targets.iter().zip(values) {
                     name.assign(context, value)?;
@@ -226,20 +225,20 @@ impl AssignmentTarget {
             .try_parse(input)
     }
 
-    fn mark_assigned(
-        &self,
-        locals: &mut HashSet<String>,
-        captured: &mut HashSet<String>,
-        captured_and_modified: &mut HashSet<String>,
-    ) -> Result<(), ParseError> {
+    fn mark_assigned(&self, variables: &mut HashMap<String, VariableState>) {
         match self {
-            Self::Single(name) => assign(name.to_owned(), locals, captured, captured_and_modified),
+            Self::Single(identifier) => {
+                variables
+                    .entry(identifier.clone())
+                    .and_modify(|state| {
+                        *state = state.after_assignment();
+                    })
+                    .or_insert_with(|| VariableState::Local);
+            }
             Self::Multiple(targets) => {
                 for target in targets {
-                    target.mark_assigned(locals, captured, captured_and_modified)?;
+                    target.mark_assigned(variables);
                 }
-
-                Ok(())
             }
         }
     }
@@ -394,28 +393,15 @@ pub fn module(input: ParseInput<'_>) -> ParseResult<'_, (Context, Block)> {
         Err(ParseError)?;
     }
 
-    let mut locals = HashSet::new();
-    let mut used_before_assignment = HashSet::new();
-    let mut unnecessarily_marked_global = HashSet::new();
+    let mut variables = HashMap::new();
     for s in &body {
-        classify_vars(
-            s,
-            &mut locals,
-            &mut used_before_assignment,
-            &mut unnecessarily_marked_global,
-        )?;
+        classify_vars(s, &mut variables)?;
     }
 
-    if !used_before_assignment.is_empty() {
-        Err(ParseError)?;
-    }
-
+    // start everything off as a local and error at runtime
     let mut context = Context::new();
-    for var in locals
-        .into_iter()
-        .chain(unnecessarily_marked_global.into_iter())
-    {
-        evaluation::declare(&mut context, var);
+    for (variable, _) in variables {
+        evaluation::declare(&mut context, variable);
     }
 
     Ok(((context, Block(body, None)), input))
@@ -441,15 +427,27 @@ fn def(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
         .and(block)
         .try_parse(input)?;
 
-    let mut locals = HashSet::new();
-    for var in &parameters {
-        locals.insert(var.to_owned());
+    // start parameters off as locals
+    let mut variables = HashMap::new();
+    variables.extend(
+        parameters
+            .iter()
+            .map(|identifier| (identifier.clone(), VariableState::Local)),
+    );
+
+    body.classify_vars(&mut variables)?;
+
+    let mut locals = Vec::new();
+    let mut captured = Vec::new();
+    let mut captured_and_modified = Vec::new();
+    for (identifier, state) in variables {
+        match state {
+            VariableState::Global => &mut captured_and_modified,
+            VariableState::Local => &mut locals,
+            VariableState::Unmarked => &mut captured,
+        }
+        .push(identifier);
     }
-
-    let mut captured = HashSet::new();
-    let mut captured_and_modified = HashSet::new();
-
-    body.classify_vars(&mut locals, &mut captured, &mut captured_and_modified)?;
 
     Ok((
         Statement::Def(Definition {
@@ -464,117 +462,68 @@ fn def(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
     ))
 }
 
-fn see(
-    var: String,
-    locals: &HashSet<String>,
-    captured: &mut HashSet<String>,
-    captured_and_modified: &HashSet<String>,
-) {
-    if !locals.contains(&var) && !captured_and_modified.contains(&var) {
-        captured.insert(var);
-    }
-}
-
-fn assign(
-    var: String,
-    locals: &mut HashSet<String>,
-    captured: &HashSet<String>,
-    captured_and_modified: &HashSet<String>,
-) -> Result<(), ParseError> {
-    if captured.contains(&var) {
-        return Err(ParseError);
-    }
-
-    if !captured_and_modified.contains(&var) {
-        locals.insert(var);
-    }
-
-    Ok(())
-}
-
-fn global(
-    var: String,
-    locals: &HashSet<String>,
-    captured: &mut HashSet<String>,
-    captured_and_modified: &mut HashSet<String>,
-) -> Result<(), ParseError> {
-    if locals.contains(&var) {
-        return Err(ParseError);
-    }
-
-    captured.remove(&var);
-    captured_and_modified.insert(var);
-
-    Ok(())
-}
-
 fn classify_vars(
     statement: &Statement,
-    locals: &mut HashSet<String>,
-    captured: &mut HashSet<String>,
-    captured_and_modified: &mut HashSet<String>,
+    variables: &mut HashMap<String, VariableState>,
 ) -> Result<(), ParseError> {
     match statement {
         Statement::Assignment(target, expr) => {
-            for var in expr.identifiers() {
-                see(var, locals, captured, captured_and_modified);
+            for identifier in expr.identifiers() {
+                variables.entry(identifier).or_default();
             }
 
-            target.mark_assigned(locals, captured, captured_and_modified)?;
+            target.mark_assigned(variables);
         }
         Statement::Call(call) => {
-            for var in call.identifiers() {
-                see(var, locals, captured, captured_and_modified);
+            for identifier in call.identifiers() {
+                variables.entry(identifier).or_default();
             }
         }
         Statement::Def(definition) => {
-            // assign name first to allow for recursion
-            assign(
-                definition.name.clone(),
-                locals,
-                captured,
-                captured_and_modified,
-            )?;
+            variables
+                .entry(definition.name.clone())
+                .and_modify(|state| *state = state.after_assignment())
+                .or_insert(VariableState::Local);
 
-            // assume all assignments and observations inside the function
-            // happen at the definition to avoid having to know
-            // when the function is called
-            for var in &definition.captured {
-                see(var.to_owned(), locals, captured, captured_and_modified);
-            }
-            for var in &definition.captured_and_modified {
-                assign(var.to_owned(), locals, captured, captured_and_modified)?;
+            for identifier in definition
+                .captured
+                .iter()
+                .chain(&definition.captured_and_modified)
+                .cloned()
+            {
+                variables.entry(identifier).or_default();
             }
         }
-        Statement::Global(name) => {
-            global(name.to_owned(), locals, captured, captured_and_modified)?;
+        Statement::Global(identifier) => {
+            let entry = variables.entry(identifier.clone()).or_default();
+            *entry = entry.after_global()?;
         }
         Statement::If(possibilities, else_) => {
             for (condition, body) in possibilities {
-                for var in condition.identifiers() {
-                    see(var, locals, captured, captured_and_modified);
+                for identifier in condition.identifiers() {
+                    variables.entry(identifier).or_default();
                 }
 
-                body.classify_vars(locals, captured, captured_and_modified)?;
+                body.classify_vars(variables)?;
             }
 
-            else_.classify_vars(locals, captured, captured_and_modified)?;
+            else_.classify_vars(variables)?;
         }
         Statement::While(condition, body) => {
-            for var in condition.identifiers() {
-                see(var, locals, captured, captured_and_modified);
+            for identifier in condition.identifiers() {
+                variables.entry(identifier).or_default();
             }
 
-            body.classify_vars(locals, captured, captured_and_modified)?;
+            body.classify_vars(variables)?;
         }
         Statement::For(target, expr, body) => {
-            for var in expr.identifiers() {
-                see(var, locals, captured, captured_and_modified);
+            for identifier in expr.identifiers() {
+                variables.entry(identifier).or_default();
             }
 
-            target.mark_assigned(locals, captured, captured_and_modified)?;
+            target.mark_assigned(variables);
 
-            body.classify_vars(locals, captured, captured_and_modified)?;
+            body.classify_vars(variables)?;
         }
     }
 

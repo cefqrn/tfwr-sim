@@ -18,9 +18,11 @@ pub fn declare(context: &mut Context, name: String) {
     add(context, name, Rc::new(RefCell::new(None)));
 }
 
-pub fn assign(context: &mut Context, name: &str, value: Value) {
-    let top = context.get_mut(name).expect("already added to context");
-    top.replace(Some(value));
+pub fn assign(context: &mut Context, name: String, value: Value) {
+    context
+        .entry(name)
+        .or_insert_with(|| Rc::new(RefCell::new(None)))
+        .replace(Some(value));
 }
 
 #[must_use]

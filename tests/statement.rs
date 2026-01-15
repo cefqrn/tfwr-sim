@@ -706,6 +706,56 @@ s = map(partial2_1(add, 5), s)
                 context.get("s").unwrap().take().unwrap()
             );
         }
+
+        #[test]
+        fn nested_closures() {
+            let ((mut context, x), _) = statement::module
+                .try_parse(
+                    "
+def f(x):
+  def inner1():
+    def inner2():
+      def inner3():
+        return x
+      return inner3
+    return inner2
+  return inner1
+
+y = f(1)()()()
+"
+                    .into(),
+                )
+                .unwrap();
+
+            println!("{context:?}\n{x:?}");
+            assert!(x.evaluate(&mut context).is_ok());
+            assert_eq!(Value::Number(1.), context.get("y").unwrap().take().unwrap());
+        }
+
+        #[test]
+        fn function_body_using_capture_defined_later() {
+            let ((mut context, x), _) = statement::module
+                .try_parse(
+                    "
+def f():
+    return g(5)
+
+def g(x):
+    return x + 1
+
+result = f()
+"
+                    .into(),
+                )
+                .unwrap();
+
+            println!("{context:?}\n{x:?}");
+            assert!(x.evaluate(&mut context).is_ok());
+            assert_eq!(
+                Value::Number(6.),
+                context.get("result").unwrap().take().unwrap()
+            );
+        }
     }
 
     mod refuses {

@@ -153,10 +153,11 @@ impl Call {
         }
 
         let mut new_context = f.base_context.clone();
-        for name in &f.locals {
-            evaluation::declare(&mut new_context, name.clone());
+        for identifier in &f.locals {
+            evaluation::declare(&mut new_context, identifier.clone());
         }
-        for (name, arg) in f.parameters.iter().zip(args) {
+
+        for (name, arg) in f.parameters.iter().cloned().zip(args) {
             evaluation::assign(&mut new_context, name, arg.evaluate(context)?);
         }
 

@@ -4,7 +4,6 @@ use crate::statement::Block;
 use parsing::{ParseError, ParseInput, ParseResult, Parser, Predicate};
 
 use std::cmp::Ordering;
-use std::collections::HashSet;
 use std::rc::Rc;
 
 #[derive(Clone, Debug)]
@@ -22,7 +21,7 @@ pub struct Closure {
     pub parameters: Vec<String>,
     pub body: Block,
     pub base_context: Context,
-    pub locals: HashSet<String>,
+    pub locals: Vec<String>,
 }
 
 impl From<Value> for bool {
@@ -78,7 +77,6 @@ impl TryFrom<&Value> for f64 {
 // no Eq since you can get NaN from inf - inf and inf through big number
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
-        println!("comparing {self:?} {other:?}");
         match (self, other) {
             (Self::String(l0), Self::String(r0)) => l0 == r0,
             (Self::Number(_) | Self::Bool(_), Self::Number(_) | Self::Bool(_)) => {
