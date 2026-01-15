@@ -28,7 +28,6 @@ pub struct Definition {
     body: Block,
     locals: Vec<String>,
     captured: Vec<String>,
-    captured_and_modified: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -79,11 +78,7 @@ impl Statement {
             }
             Self::Def(definition) => {
                 let mut base_context = Context::new();
-                for name in definition
-                    .captured
-                    .iter()
-                    .chain(&definition.captured_and_modified)
-                {
+                for name in &definition.captured {
                     let captured_variable = evaluation::capture(context, name);
                     evaluation::add(&mut base_context, name.to_owned(), captured_variable);
                 }
@@ -439,12 +434,10 @@ fn def(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
 
     let mut locals = Vec::new();
     let mut captured = Vec::new();
-    let mut captured_and_modified = Vec::new();
     for (identifier, state) in variables {
         match state {
-            VariableState::Global => &mut captured_and_modified,
+            VariableState::Global | VariableState::Unmarked => &mut captured,
             VariableState::Local => &mut locals,
-            VariableState::Unmarked => &mut captured,
         }
         .push(identifier);
     }
@@ -456,7 +449,6 @@ fn def(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
             body,
             locals,
             captured,
-            captured_and_modified,
         }),
         input,
     ))
@@ -485,12 +477,7 @@ fn classify_vars(
                 .and_modify(|state| *state = state.after_assignment())
                 .or_insert(VariableState::Local);
 
-            for identifier in definition
-                .captured
-                .iter()
-                .chain(&definition.captured_and_modified)
-                .cloned()
-            {
+            for identifier in definition.captured.iter().cloned() {
                 variables.entry(identifier).or_default();
             }
         }
