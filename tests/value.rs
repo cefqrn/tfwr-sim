@@ -9,7 +9,7 @@ mod number {
 
         #[test]
         fn zero() {
-            match Value::parse.try_parse("0".into()) {
+            match Value::parse.try_parse("0") {
                 Ok((Value::Number(0.), _)) => {}
                 _ => panic!(),
             }
@@ -17,7 +17,7 @@ mod number {
 
         #[test]
         fn nonzero_whole() {
-            match Value::parse.try_parse("1234".into()) {
+            match Value::parse.try_parse("1234") {
                 Ok((Value::Number(1234.), _)) => {}
                 _ => panic!(),
             }
@@ -25,7 +25,7 @@ mod number {
 
         #[test]
         fn zero_with_fractional() {
-            match Value::parse.try_parse("0.25".into()) {
+            match Value::parse.try_parse("0.25") {
                 Ok((Value::Number(0.25), _)) => {}
                 _ => panic!(),
             }
@@ -33,7 +33,7 @@ mod number {
 
         #[test]
         fn nonzero_with_fractional() {
-            match Value::parse.try_parse("12.25".into()) {
+            match Value::parse.try_parse("12.25") {
                 Ok((Value::Number(12.25), _)) => {}
                 _ => panic!(),
             }
@@ -41,7 +41,7 @@ mod number {
 
         #[test]
         fn fractional_without_whole() {
-            match Value::parse.try_parse(".25".into()) {
+            match Value::parse.try_parse(".25") {
                 Ok((Value::Number(0.25), _)) => {}
                 _ => panic!(),
             }
@@ -53,7 +53,7 @@ mod number {
 
         #[test]
         fn single_dot() {
-            if let Ok((Value::Number(_), _)) = Value::parse.try_parse(".".into()) {
+            if let Ok((Value::Number(_), _)) = Value::parse.try_parse(".") {
                 panic!()
             }
         }
@@ -61,7 +61,7 @@ mod number {
         #[test]
         fn whole_with_dot() {
             // doesn't include the dot in the number
-            match Value::parse.followed_by('.').try_parse("5.".into()) {
+            match Value::parse.followed_by('.').try_parse("5.") {
                 Ok((Value::Number(5.), _)) => {}
                 _ => panic!(),
             }

@@ -8,17 +8,17 @@ mod string_parser {
 
         #[test]
         fn itself() {
-            assert!("pineapple".try_parse("pineapple".into()).is_ok());
+            assert!("pineapple".try_parse("pineapple").is_ok());
         }
 
         #[test]
         fn a_string_starting_with_it() {
-            assert!("pineapple".try_parse("pineapple pizza".into()).is_ok());
+            assert!("pineapple".try_parse("pineapple pizza").is_ok());
         }
 
         #[test]
         fn an_empty_string_if_the_parser_is_empty() {
-            assert!("".try_parse("".into()).is_ok());
+            assert!("".try_parse("").is_ok());
         }
     }
 
@@ -27,17 +27,17 @@ mod string_parser {
 
         #[test]
         fn an_empty_string_if_the_parser_is_nonempty() {
-            assert!("pineapple".try_parse("".into()).is_err());
+            assert!("pineapple".try_parse("").is_err());
         }
 
         #[test]
         fn a_nonempty_prefix() {
-            assert!("pineapple".try_parse("pine".into()).is_err());
+            assert!("pineapple".try_parse("pine").is_err());
         }
 
         #[test]
         fn a_string_containing_but_not_starting_with_it() {
-            assert!("pineapple".try_parse("a pineapple".into()).is_err());
+            assert!("pineapple".try_parse("a pineapple").is_err());
         }
     }
 }
@@ -50,7 +50,7 @@ mod char_parser {
 
         #[test]
         fn a_string_starting_with_it() {
-            assert!('p'.try_parse("p".into()).is_ok());
+            assert!('p'.try_parse("p").is_ok());
         }
     }
 
@@ -59,12 +59,12 @@ mod char_parser {
 
         #[test]
         fn an_empty_string() {
-            assert!('p'.try_parse("".into()).is_err());
+            assert!('p'.try_parse("").is_err());
         }
 
         #[test]
         fn a_string_containing_but_not_starting_with_it() {
-            assert!('p'.try_parse("a pineapple".into()).is_err());
+            assert!('p'.try_parse("a pineapple").is_err());
         }
     }
 }
@@ -77,7 +77,7 @@ mod maybe {
 
         #[test]
         fn a_string_the_input_parser_accepts() {
-            let input = "pineapple pizza".into();
+            let input = "pineapple pizza";
 
             assert!("pineapple".try_parse(input).is_ok());
             assert!("pineapple".maybe().try_parse(input).is_ok());
@@ -85,7 +85,7 @@ mod maybe {
 
         #[test]
         fn a_string_the_input_parser_refuses() {
-            let input = "pizza".into();
+            let input = "pizza";
 
             assert!("pineapple".try_parse(input).is_err());
             assert!("pineapple".maybe().try_parse(input).is_ok());
@@ -101,12 +101,7 @@ mod at_least_one {
 
         #[test]
         fn exactly_one() {
-            assert!(
-                "pineapple"
-                    .at_least_one()
-                    .try_parse("pineapple".into())
-                    .is_ok()
-            );
+            assert!("pineapple".at_least_one().try_parse("pineapple").is_ok());
         }
 
         #[test]
@@ -114,7 +109,7 @@ mod at_least_one {
             assert!(
                 "pineapple"
                     .at_least_one()
-                    .try_parse("pineapple pizza".into())
+                    .try_parse("pineapple pizza")
                     .is_ok()
             );
         }
@@ -124,7 +119,7 @@ mod at_least_one {
             assert!(
                 "pineapple"
                     .at_least_one()
-                    .try_parse("pineapplepineapple".into())
+                    .try_parse("pineapplepineapple")
                     .is_ok()
             );
         }
@@ -134,7 +129,7 @@ mod at_least_one {
             assert!(
                 "pineapple"
                     .at_least_one()
-                    .try_parse("pineapplepineapplepizza".into())
+                    .try_parse("pineapplepineapplepizza")
                     .is_ok()
             );
         }
@@ -147,13 +142,13 @@ mod at_least_one {
         fn an_empty_string_the_input_parser_refuses() {
             // if the input parser accepts an empty string,
             // the parser enters an infinite loop
-            assert!("pineapple".try_parse("".into()).is_err());
-            assert!("pineapple".at_least_one().try_parse("".into()).is_err());
+            assert!("pineapple".try_parse("").is_err());
+            assert!("pineapple".at_least_one().try_parse("").is_err());
         }
 
         #[test]
         fn a_nonempty_string_the_input_parser_refuses() {
-            let input = "pizza".into();
+            let input = "pizza";
 
             assert!("pineapple".try_parse(input).is_err());
             assert!("pineapple".at_least_one().try_parse(input).is_err());

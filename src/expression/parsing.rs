@@ -169,14 +169,14 @@ fn primary(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
 }
 
 fn enclosed(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
-    parsing::open_paren
+    parsing::open_bracket('(')
         .before(parsing::whitespace)
         .before(
             Expression::parse
                 .followed_by(parsing::whitespace)
                 .or(parsing::nothing.map(|()| Expression::Tuple(Vec::new()))),
         )
-        .followed_by(parsing::close_paren)
+        .followed_by(parsing::close_bracket(')'))
         .try_parse(input)
 }
 
@@ -188,7 +188,7 @@ fn atom(input: ParseInput<'_>) -> ParseResult<'_, Expression> {
 }
 
 fn args(input: ParseInput<'_>) -> ParseResult<'_, Vec<Expression>> {
-    parsing::open_paren
+    parsing::open_bracket('(')
         .before(
             parsing::whitespace
                 .before(element)
@@ -196,7 +196,7 @@ fn args(input: ParseInput<'_>) -> ParseResult<'_, Vec<Expression>> {
                 .any_amount(),
         )
         .followed_by(parsing::whitespace)
-        .followed_by(parsing::close_paren)
+        .followed_by(parsing::close_bracket(')'))
         .try_parse(input)
 }
 

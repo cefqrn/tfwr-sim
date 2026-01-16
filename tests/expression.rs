@@ -12,8 +12,7 @@ mod identifier {
 
         #[test]
         fn ascii_letters() {
-            if let Ok((Expression::Identifier(name), _)) =
-                Expression::parse.try_parse("Pineapple".into())
+            if let Ok((Expression::Identifier(name), _)) = Expression::parse.try_parse("Pineapple")
             {
                 assert_eq!(name, "Pineapple");
             } else {
@@ -23,7 +22,7 @@ mod identifier {
 
         #[test]
         fn underscore() {
-            if let Ok((Expression::Identifier(name), _)) = Expression::parse.try_parse("_".into()) {
+            if let Ok((Expression::Identifier(name), _)) = Expression::parse.try_parse("_") {
                 assert_eq!(name, "_");
             } else {
                 panic!();
@@ -33,7 +32,7 @@ mod identifier {
         #[test]
         fn numbers_after_first_letter() {
             if let Ok((Expression::Identifier(name), _)) =
-                Expression::parse.try_parse("p1i2n3e4a5p6p7l8e9".into())
+                Expression::parse.try_parse("p1i2n3e4a5p6p7l8e9")
             {
                 assert_eq!(name, "p1i2n3e4a5p6p7l8e9");
             } else {
@@ -43,8 +42,8 @@ mod identifier {
 
         #[test]
         fn non_ascii_alphabetic_after_first_letter() {
-            if let Ok((Expression::Identifier(name), _)) = Expression::parse
-                .try_parse("aΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω".into())
+            if let Ok((Expression::Identifier(name), _)) =
+                Expression::parse.try_parse("aΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω")
             {
                 assert_eq!(name, "aΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω");
             } else {
@@ -54,9 +53,7 @@ mod identifier {
 
         #[test]
         fn containing_keyword() {
-            if let Ok((Expression::Identifier(name), _)) =
-                Expression::parse.try_parse("Nonea".into())
-            {
+            if let Ok((Expression::Identifier(name), _)) = Expression::parse.try_parse("Nonea") {
                 assert_eq!(name, "Nonea");
             }
         }
@@ -67,25 +64,21 @@ mod identifier {
 
         #[test]
         fn number_on_first_character() {
-            if let Ok((Expression::Identifier(_), _)) =
-                Expression::parse.try_parse("1pineapple".into())
-            {
+            if let Ok((Expression::Identifier(_), _)) = Expression::parse.try_parse("1pineapple") {
                 panic!();
             }
         }
 
         #[test]
         fn non_ascii_on_first_character() {
-            if let Ok((Expression::Identifier(_), _)) =
-                Expression::parse.try_parse("Αpineapple".into())
-            {
+            if let Ok((Expression::Identifier(_), _)) = Expression::parse.try_parse("Αpineapple") {
                 panic!();
             }
         }
 
         #[test]
         fn keyword() {
-            if let Ok((Expression::Identifier(_), _)) = Expression::parse.try_parse("None".into()) {
+            if let Ok((Expression::Identifier(_), _)) = Expression::parse.try_parse("None") {
                 panic!();
             }
         }
@@ -101,9 +94,7 @@ mod literal {
 
         #[test]
         fn none() {
-            if let Ok((Expression::Literal(Value::None), _)) =
-                Expression::parse.try_parse("None".into())
-            {
+            if let Ok((Expression::Literal(Value::None), _)) = Expression::parse.try_parse("None") {
             } else {
                 panic!();
             }
@@ -116,7 +107,7 @@ mod literal {
         #[test]
         fn empty_string() {
             if let Ok((Expression::Literal(Value::String(s)), _)) =
-                Expression::parse.try_parse("\"\"".into())
+                Expression::parse.try_parse("\"\"")
             {
                 assert_eq!(s, "");
             } else {
@@ -127,7 +118,7 @@ mod literal {
         #[test]
         fn escaped_newline() {
             if let Ok((Expression::Literal(Value::String(s)), _)) =
-                Expression::parse.try_parse("\"pineapple\npizza\"".into())
+                Expression::parse.try_parse("\"pineapple\npizza\"")
             {
                 assert_eq!(s, "pineapple\npizza");
             } else {
@@ -138,7 +129,7 @@ mod literal {
         #[test]
         fn escaped_quotes() {
             if let Ok((Expression::Literal(Value::String(s)), _)) =
-                Expression::parse.try_parse("\"\\\"pineapple\\\" pizza\"".into())
+                Expression::parse.try_parse("\"\\\"pineapple\\\" pizza\"")
             {
                 assert_eq!(s, "\\\"pineapple\\\" pizza"); // \"pineapple\" pizza
             } else {
@@ -157,36 +148,35 @@ mod expression_ {
         #[test]
         fn surrounded_by_parens() {
             assert_eq!(
-                Expression::parse.try_parse("1".into()),
-                Expression::parse.try_parse("(1)".into())
+                Expression::parse.try_parse("1"),
+                Expression::parse.try_parse("(1)")
             );
         }
 
         #[test]
         fn surrounded_by_nested_parens() {
             assert_eq!(
-                Expression::parse.try_parse("1".into()),
-                Expression::parse.try_parse("((1))".into())
+                Expression::parse.try_parse("1"),
+                Expression::parse.try_parse("((1))")
             );
         }
 
         #[test]
         fn surrounded_by_parens_and_whitespace_without_newlines() {
             assert_eq!(
-                Expression::parse.try_parse("1".into()),
-                Expression::parse.try_parse("( 1 )".into())
+                Expression::parse.try_parse("1"),
+                Expression::parse.try_parse("( 1 )")
             );
         }
 
         #[test]
         fn surrounded_by_parens_and_whitespace_with_newlines() {
             assert_eq!(
-                Expression::parse.try_parse("1".into()),
+                Expression::parse.try_parse("1"),
                 Expression::parse.try_parse(
                     "(
             1
             )"
-                    .into()
                 )
             );
         }
@@ -194,13 +184,12 @@ mod expression_ {
         #[test]
         fn surrounded_by_parens_and_whitespace_with_empty_lines() {
             assert_eq!(
-                Expression::parse.try_parse("1".into()),
+                Expression::parse.try_parse("1"),
                 Expression::parse.try_parse(
                     "(
 
             1
             )"
-                    .into()
                 )
             );
         }
@@ -208,14 +197,13 @@ mod expression_ {
         #[test]
         fn surrounded_by_parens_and_whitespace_and_comments() {
             assert_eq!(
-                Expression::parse.try_parse("1".into()),
+                Expression::parse.try_parse("1"),
                 Expression::parse.try_parse(
                     "(#comment
         (1 # comment
         ) # comment
 
         )"
-                    .into()
                 )
             );
         }
@@ -223,19 +211,18 @@ mod expression_ {
         #[test]
         fn spaces_between_operation_and_operand() {
             assert_eq!(
-                Expression::parse.try_parse("-1".into()),
-                Expression::parse.try_parse("- 1".into())
+                Expression::parse.try_parse("-1"),
+                Expression::parse.try_parse("- 1")
             );
         }
 
         #[test]
         fn newlines_between_operation_and_operand_when_enclosed() {
             assert_eq!(
-                Expression::parse.try_parse("-1".into()),
+                Expression::parse.try_parse("-1"),
                 Expression::parse.try_parse(
                     "(-
             1)"
-                    .into()
                 )
             );
         }
@@ -252,8 +239,7 @@ mod expression_ {
 a = 1 < 2
 b = 1 < 1
 c = 2 < 1
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -296,8 +282,7 @@ nan = inf - inf
 
 l = inf == inf
 m = nan == nan
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -347,8 +332,7 @@ nan = inf - inf
 
 l = inf != inf
 m = nan != nan
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -372,12 +356,12 @@ m = nan != nan
 
         #[test]
         fn modulo() {
-            let ((mut context, x), _) = module::parse.try_parse("a = 11 % 3".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("a = 11 % 3").unwrap();
             println!("{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
             assert_eq!(Value::Number(2.), context.get("a").unwrap());
 
-            let ((mut context, x), _) = module::parse.try_parse("a = -11 % 3".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("a = -11 % 3").unwrap();
             println!("{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
             assert_eq!(Value::Number(1.), context.get("a").unwrap());
@@ -385,12 +369,12 @@ m = nan != nan
 
         #[test]
         fn floor_division() {
-            let ((mut context, x), _) = module::parse.try_parse("a = 11 // 3".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("a = 11 // 3").unwrap();
             println!("{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
             assert_eq!(Value::Number(3.), context.get("a").unwrap());
 
-            let ((mut context, x), _) = module::parse.try_parse("a = -11 // 3".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("a = -11 // 3").unwrap();
             println!("{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
             assert_eq!(Value::Number(-4.), context.get("a").unwrap());
@@ -399,7 +383,7 @@ m = nan != nan
         #[test]
         fn chained_powers() {
             // TODO: make this a power of 2 or check for difference
-            let ((mut context, x), _) = module::parse.try_parse("a = -2**-3**-4".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("a = -2**-3**-4").unwrap();
             println!("{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
             assert_eq!(
@@ -433,8 +417,7 @@ _ = g((1,), 2)
 _ = g((1,), 2,)
 _ = g((1,), (2,))
 _ = g((1,), (2,),)
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -450,8 +433,7 @@ _ = g((1,), (2,),)
                     "
 a = +True
 b = +False
-"
-                    .into(),
+",
                 )
                 .unwrap();
             println!("{x:?}");
@@ -467,8 +449,7 @@ b = +False
                     "
 a = -True
 b = -False
-"
-                    .into(),
+",
                 )
                 .unwrap();
             println!("{x:?}");
@@ -479,7 +460,7 @@ b = -False
 
         #[test]
         fn pos_number_with_whole() {
-            let ((mut context, x), _) = module::parse.try_parse("k = +5.75".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("k = +5.75").unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -489,7 +470,7 @@ b = -False
 
         #[test]
         fn pos_number_without_whole() {
-            let ((mut context, x), _) = module::parse.try_parse("k = +.75".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("k = +.75").unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -499,7 +480,7 @@ b = -False
 
         #[test]
         fn neg_number_with_whole() {
-            let ((mut context, x), _) = module::parse.try_parse("k = -5.75".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("k = -5.75").unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -509,7 +490,7 @@ b = -False
 
         #[test]
         fn neg_number_without_whole() {
-            let ((mut context, x), _) = module::parse.try_parse("k = -.75".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("k = -.75").unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -526,8 +507,7 @@ def f():
     _ = 5
 
 _ = f()
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -542,8 +522,7 @@ _ = f()
                 "
 x = 2
 _ = x()
-"
-                .into(),
+",
             ) else {
                 println!("failed to parse");
                 return;
@@ -557,7 +536,7 @@ _ = x()
         #[test]
         fn pos_neg_add_sub_mul_div_precedence() {
             let ((mut context, x), _) = module::parse
-                .try_parse("k = 1 + +2 - 3 * 7 - -5 / 2".into())
+                .try_parse("k = 1 + +2 - 3 * 7 - -5 / 2")
                 .unwrap();
 
             println!("{context:?}\n{x:?}");
@@ -571,8 +550,7 @@ _ = x()
 
         #[test]
         fn pos_neg() {
-            let ((mut context, x), _) =
-                module::parse.try_parse("x = --+-1 - ++-+5".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("x = --+-1 - ++-+5").unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -589,7 +567,7 @@ _ = x()
 
         #[test]
         fn call() {
-            assert!(Expression::parse.try_parse("pineapple()".into()).is_ok());
+            assert!(Expression::parse.try_parse("pineapple()").is_ok());
         }
     }
 
@@ -599,19 +577,18 @@ _ = x()
         #[test]
         fn newlines_between_operation_and_operand_when_not_enclosed() {
             assert_eq!(
-                Expression::parse.try_parse("-1".into()),
+                Expression::parse.try_parse("-1"),
                 Expression::parse.try_parse(
                     "(-
 
             1)"
-                    .into()
                 )
             );
         }
 
         #[test]
         fn comparison_between_incompatible_types() {
-            let ((mut context, x), _) = module::parse.try_parse("a = 5 < \"\"".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("a = 5 < \"\"").unwrap();
             println!("{x:?}");
             assert!(x.evaluate(&mut context).is_err());
         }
@@ -626,7 +603,7 @@ mod tuple {
 
         #[test]
         fn unit() {
-            let ((mut context, x), _) = module::parse.try_parse("x = ()".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("x = ()").unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -639,7 +616,7 @@ mod tuple {
 
         #[test]
         fn unenclosed_1_tuple_with_trailing_comma() {
-            let ((mut context, x), _) = module::parse.try_parse("x = 1,".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("x = 1,").unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -655,7 +632,7 @@ mod tuple {
 
         #[test]
         fn enclosed_1_tuple_with_trailing_comma() {
-            let ((mut context, x), _) = module::parse.try_parse("x = (1,)".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("x = (1,)").unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -671,7 +648,7 @@ mod tuple {
 
         #[test]
         fn unenclosed_2_tuple_without_trailing_comma() {
-            let ((mut context, x), _) = module::parse.try_parse("x = 1, 2".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("x = 1, 2").unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -687,7 +664,7 @@ mod tuple {
 
         #[test]
         fn unenclosed_2_tuple_with_trailing_comma() {
-            let ((mut context, x), _) = module::parse.try_parse("x = 1, 2,".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("x = 1, 2,").unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -703,7 +680,7 @@ mod tuple {
 
         #[test]
         fn enclosed_2_tuple_without_trailing_comma() {
-            let ((mut context, x), _) = module::parse.try_parse("x = (1, 2)".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("x = (1, 2)").unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -719,7 +696,7 @@ mod tuple {
 
         #[test]
         fn enclosed_2_tuple_with_trailing_comma() {
-            let ((mut context, x), _) = module::parse.try_parse("x = (1, 2,)".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("x = (1, 2,)").unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -739,7 +716,7 @@ mod tuple {
 
         #[test]
         fn unenclosed_1_tuple_without_trailing_comma() {
-            let Ok(((mut context, x), _)) = module::parse.try_parse("x = 1".into()) else {
+            let Ok(((mut context, x), _)) = module::parse.try_parse("x = 1") else {
                 println!("failed to parse");
                 return;
             };
@@ -759,7 +736,7 @@ mod tuple {
 
         #[test]
         fn enclosed_1_tuple_without_trailing_comma() {
-            let Ok(((mut context, x), _)) = module::parse.try_parse("x = (1)".into()) else {
+            let Ok(((mut context, x), _)) = module::parse.try_parse("x = (1)") else {
                 println!("failed to parse");
                 return;
             };

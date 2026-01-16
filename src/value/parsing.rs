@@ -39,24 +39,23 @@ fn number(input: ParseInput<'_>) -> ParseResult<'_, Value> {
     Ok((Value::Number(result), input))
 }
 
-fn string(input: ParseInput<'_>) -> ParseResult<'_, Value> {
-    let escaped = |input| {
+fn string<'a>(input: ParseInput<'a>) -> ParseResult<'a, Value> {
+    let escaped = |input: ParseInput<'a>| {
         let (_, rest) = '\\'.and(Predicate(&|_| true)).try_parse(input)?;
-        let taken = &input.s[..input.s.len() - rest.s.len()];
-
-        Ok((taken, rest))
+        Ok((input.s.len() - rest.s.len(), rest))
     };
 
-    let unescaped = |input| {
+    let unescaped = |input: ParseInput<'a>| {
         let (_, rest) = Predicate(&|c| c != '"').try_parse(input)?;
-        let taken = &input.s[..input.s.len() - rest.s.len()];
-
-        Ok((taken, rest))
+        Ok((input.s.len() - rest.s.len(), rest))
     };
 
     let (s, rest) = '"'
         .before(escaped.or(unescaped).any_amount())
         .followed_by('"')
         .try_parse(input)?;
-    Ok((Value::String(s.join("")), rest))
+    Ok((
+        Value::String(input.s[1..][..s.iter().sum()].to_owned()),
+        rest,
+    ))
 }

@@ -23,8 +23,7 @@ def f():
     y = x
 
 f()
-"
-                .into(),
+",
             )
             .unwrap();
 
@@ -49,8 +48,7 @@ def f():
     g()
 
 f()
-"
-                .into(),
+",
             )
             .unwrap();
 
@@ -77,8 +75,7 @@ def f():
     b = x
 
 f()
-"
-                .into(),
+",
             )
             .unwrap();
 
@@ -108,8 +105,7 @@ def f():
     b = x
 
 f()
-"
-                .into(),
+",
             )
             .unwrap();
 

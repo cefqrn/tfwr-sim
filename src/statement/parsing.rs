@@ -156,14 +156,14 @@ impl Block {
 impl AssignmentTarget {
     fn parse(input: ParseInput<'_>) -> ParseResult<'_, Self> {
         fn element(input: ParseInput<'_>) -> ParseResult<'_, AssignmentTarget> {
-            parsing::open_paren
+            parsing::open_bracket('(')
                 .before(parsing::whitespace)
                 .before(
                     AssignmentTarget::parse
                         .followed_by(parsing::whitespace)
                         .or(parsing::nothing.map(|()| AssignmentTarget::Multiple(Vec::new()))),
                 )
-                .followed_by(parsing::close_paren)
+                .followed_by(parsing::close_bracket(')'))
                 .or(parsing::assignable.map(AssignmentTarget::Single))
                 .try_parse(input)
         }
@@ -192,7 +192,7 @@ fn def(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
         .before(parsing::spaces)
         .before(parsing::assignable)
         .followed_by(parsing::spaces)
-        .followed_by(parsing::open_paren)
+        .followed_by(parsing::open_bracket('('))
         .and(
             parsing::whitespace
                 .before(parsing::assignable)
@@ -200,7 +200,7 @@ fn def(input: ParseInput<'_>) -> ParseResult<'_, Statement> {
                 .any_amount(),
         )
         .followed_by(parsing::whitespace)
-        .followed_by(parsing::close_paren)
+        .followed_by(parsing::close_bracket(')'))
         .followed_by(parsing::spaces)
         .followed_by(':')
         .followed_by(parsing::up_to_next_statement)

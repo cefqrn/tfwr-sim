@@ -20,8 +20,7 @@ c = 7
 
 # pizza
 d = a * -b + c
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -56,8 +55,7 @@ if 0:
         zxcvbn = 789
     if 0:
         nbvcxz = 987
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -113,8 +111,7 @@ elif False:
     w = 7
 else:
     w = 8
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -137,8 +134,7 @@ def f():
     _ = 5
 
 n = 5
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -156,8 +152,7 @@ def f(a, b):
     k = a + b
 
 n = 5
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -172,8 +167,7 @@ n = 5
                 .try_parse(
                     "
 x = 5
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -189,8 +183,7 @@ x = 5
                     "
 x = 5
 x = 6
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -207,8 +200,7 @@ x = 6
 x = 5
 def x():
     _ = 5
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -224,8 +216,7 @@ def x():
                     "
 x = 5
 x = x + 1
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -242,8 +233,7 @@ x = x + 1
 def f():
     global a
     a = 5
-"
-                    .into(),
+",
                 )
                 .unwrap();
             println!("{context:?}\n{x:?}");
@@ -259,8 +249,7 @@ def f():
     a = 5
 
 _ = f()
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -287,8 +276,7 @@ def f():
 a = 0
 b = 1
 _ = f()
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -312,8 +300,7 @@ def f(a, b):
         result = a+b
 
 _ = f(0, 1)
-    "
-                    .into(),
+    ",
                 )
                 .unwrap();
 
@@ -336,8 +323,7 @@ def f():
 x = 5
 _ = f()
 # quick_print(x)  # 6
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -352,17 +338,17 @@ _ = f()
 
         #[test]
         fn or_short_circuits() {
-            let ((mut context, x), _) = module::parse(
-                "
+            let ((mut context, x), _) = module::parse
+                .try_parse(
+                    "
 def f(x):
     global side_effect
     side_effect = x
 
 k = 5 or f(6)
-"
-                .into(),
-            )
-            .unwrap();
+",
+                )
+                .unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -376,17 +362,17 @@ k = 5 or f(6)
 
         #[test]
         fn and_short_circuits() {
-            let ((mut context, x), _) = module::parse(
-                "
+            let ((mut context, x), _) = module::parse
+                .try_parse(
+                    "
 def f(x):
     global side_effect
     side_effect = x
 
 k = 0 and f(6)
-"
-                .into(),
-            )
-            .unwrap();
+",
+                )
+                .unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -400,18 +386,18 @@ k = 0 and f(6)
 
         #[test]
         fn while_loop() {
-            let ((mut context, x), _) = module::parse(
-                "
+            let ((mut context, x), _) = module::parse
+                .try_parse(
+                    "
 a = 0
 b = 1
 while b < 1000:
     c = a + b
     a = b
     b = c
-"
-                .into(),
-            )
-            .unwrap();
+",
+                )
+                .unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -425,8 +411,9 @@ while b < 1000:
 
         #[test]
         fn return_with_parameters_and_recursion() {
-            let ((mut context, x), _) = module::parse(
-                "
+            let ((mut context, x), _) = module::parse
+                .try_parse(
+                    "
 def f(a, b):
     if b >= 1000:
         return b
@@ -434,10 +421,9 @@ def f(a, b):
         return f(b, a+b)
 
 result = f(0, 1)
-"
-                .into(),
-            )
-            .unwrap();
+",
+                )
+                .unwrap();
 
             println!("{context:?}\n{x:?}");
 
@@ -447,7 +433,7 @@ result = f(0, 1)
 
         #[test]
         fn unit_assignment() {
-            let ((mut context, x), _) = module::parse.try_parse("() = ()".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("() = ()").unwrap();
 
             println!("{context:?}\n{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
@@ -455,7 +441,7 @@ result = f(0, 1)
 
         #[test]
         fn unenclosed_1_tuple_assignment() {
-            let ((mut context, x), _) = module::parse.try_parse("x, = 1,".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("x, = 1,").unwrap();
 
             println!("{context:?}\n{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
@@ -464,7 +450,7 @@ result = f(0, 1)
 
         #[test]
         fn unenclosed_2_tuple_assignment() {
-            let ((mut context, x), _) = module::parse.try_parse("x, y = 1, 2".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("x, y = 1, 2").unwrap();
 
             println!("{context:?}\n{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
@@ -474,7 +460,7 @@ result = f(0, 1)
 
         #[test]
         fn enclosed_1_tuple_assignment() {
-            let ((mut context, x), _) = module::parse.try_parse("(x,) = 1,".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("(x,) = 1,").unwrap();
 
             println!("{context:?}\n{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
@@ -483,7 +469,7 @@ result = f(0, 1)
 
         #[test]
         fn enclosed_2_tuple_assignment() {
-            let ((mut context, x), _) = module::parse.try_parse("(x, y) = 1, 2".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("(x, y) = 1, 2").unwrap();
 
             println!("{context:?}\n{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
@@ -499,8 +485,7 @@ result = f(0, 1)
 x = 1, (2, (3, (4, None)))
 while x:
     curr, x = x
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -516,8 +501,7 @@ while x:
                     "
 z = (3, 4), (5, 6)
 (x, y), p = z
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -550,8 +534,7 @@ def h():
 
 for fn in f, g, h:
     _ = fn()
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -572,8 +555,7 @@ def f():
     k = 5
 
 f()
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -612,8 +594,7 @@ def f():
     return g
 
 f()()()
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -648,8 +629,7 @@ def partial2_1(f, x):
 
 s = 1, (2, (3, None))
 s = map(partial2_1(add, 5), s)
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -682,8 +662,7 @@ def f(x):
   return inner1
 
 y = f(1)()()()
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -704,8 +683,7 @@ def g(x):
     return x + 1
 
 result = f()
-"
-                    .into(),
+",
                 )
                 .unwrap();
 
@@ -720,12 +698,12 @@ result = f()
 
         #[test]
         fn multiple_statements_on_the_same_line() {
-            assert!(module::parse.try_parse("x = 1 y = 2".into()).is_err());
+            assert!(module::parse.try_parse("x = 1 y = 2").is_err());
         }
 
         #[test]
         fn assigning_to_keyword() {
-            assert!(module::parse.try_parse("None = 5".into()).is_err());
+            assert!(module::parse.try_parse("None = 5").is_err());
         }
     }
 }

@@ -26,7 +26,7 @@ pub trait Parser<'a, T>
 where
     Self: Sized + Copy,
 {
-    fn try_parse(&self, input: ParseInput<'a>) -> ParseResult<'a, T>;
+    fn try_parse(&self, input: impl Into<ParseInput<'a>>) -> ParseResult<'a, T>;
 
     fn maybe(self) -> impl Parser<'a, Option<T>> {
         move |input| match self.try_parse(input) {
@@ -121,8 +121,8 @@ where
 }
 
 impl<'b, T, U: Copy + Fn(ParseInput<'b>) -> ParseResult<'b, T>> Parser<'b, T> for U {
-    fn try_parse(&self, input: ParseInput<'b>) -> ParseResult<'b, T> {
-        self(input)
+    fn try_parse(&self, input: impl Into<ParseInput<'b>>) -> ParseResult<'b, T> {
+        self(input.into())
     }
 }
 
@@ -131,7 +131,9 @@ impl<'b, T, U: Copy + Fn(ParseInput<'b>) -> ParseResult<'b, T>> Parser<'b, T> fo
 #[derive(Clone, Copy)]
 pub struct Predicate<'a>(pub &'a dyn Fn(char) -> bool);
 impl<'b> Parser<'b, char> for Predicate<'_> {
-    fn try_parse(&self, input: ParseInput<'b>) -> ParseResult<'b, char> {
+    fn try_parse(&self, input: impl Into<ParseInput<'b>>) -> ParseResult<'b, char> {
+        let input = input.into();
+
         let mut chars = input.s.chars();
         let c = chars.next().ok_or(ParseError)?;
         self.0(c)
@@ -146,15 +148,17 @@ impl<'b> Parser<'b, char> for Predicate<'_> {
     }
 }
 
-impl Parser<'_, Self> for &str {
-    fn try_parse<'a>(&self, input: ParseInput<'a>) -> ParseResult<'a, Self> {
+impl<'b> Parser<'b, Self> for &str {
+    fn try_parse(&self, input: impl Into<ParseInput<'b>>) -> ParseResult<'b, Self> {
+        let input = input.into();
         let rest = input.s.strip_prefix(self).ok_or(ParseError)?;
         Ok((self, ParseInput { s: rest, ..input }))
     }
 }
 
-impl Parser<'_, Self> for char {
-    fn try_parse<'a>(&self, input: ParseInput<'a>) -> ParseResult<'a, Self> {
+impl<'b> Parser<'b, Self> for char {
+    fn try_parse(&self, input: impl Into<ParseInput<'b>>) -> ParseResult<'b, Self> {
+        let input = input.into();
         let rest = input.s.strip_prefix(*self).ok_or(ParseError)?;
         Ok((*self, ParseInput { s: rest, ..input }))
     }
@@ -228,26 +232,32 @@ pub fn identifier_boundary(input: ParseInput<'_>) -> ParseResult<'_, ()> {
         .try_parse(input)
 }
 
-pub fn open_paren(input: ParseInput<'_>) -> ParseResult<'_, char> {
-    let (result, input) = '('.try_parse(input)?;
-    Ok((
-        result,
-        ParseInput {
-            enclosure_amount: input.enclosure_amount + 1,
-            ..input
-        },
-    ))
+#[must_use]
+pub fn open_bracket<'a>(bracket: char) -> impl Parser<'a, char> {
+    move |input| {
+        let (result, input) = bracket.try_parse(input)?;
+        Ok((
+            result,
+            ParseInput {
+                enclosure_amount: input.enclosure_amount + 1,
+                ..input
+            },
+        ))
+    }
 }
 
-pub fn close_paren(input: ParseInput<'_>) -> ParseResult<'_, char> {
-    let (result, input) = ')'.try_parse(input)?;
-    Ok((
-        result,
-        ParseInput {
-            enclosure_amount: input.enclosure_amount - 1,
-            ..input
-        },
-    ))
+#[must_use]
+pub fn close_bracket<'a>(bracket: char) -> impl Parser<'a, char> {
+    move |input| {
+        let (result, input) = bracket.try_parse(input)?;
+        Ok((
+            result,
+            ParseInput {
+                enclosure_amount: input.enclosure_amount - 1,
+                ..input
+            },
+        ))
+    }
 }
 
 pub fn identifier_string(input: ParseInput<'_>) -> ParseResult<'_, String> {
