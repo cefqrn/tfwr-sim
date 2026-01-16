@@ -1,9 +1,9 @@
-use crate::evaluation;
+use crate::context;
 use crate::expression;
 use crate::parsing;
 use crate::value::{Closure, Value};
 use crate::variable::VariableState;
-use evaluation::{Context, EvaluationError};
+use context::{Context, EvaluationError};
 use expression::{Call, Expression};
 use parsing::{ParseError, ParseInput, ParseResult, Parser};
 
@@ -77,20 +77,16 @@ impl Statement {
                 else_.evaluate(context)
             }
             Self::Def(definition) => {
-                let mut base_context = Context::new();
-                for name in &definition.captured {
-                    let captured_variable = evaluation::capture(context, name);
-                    evaluation::add(&mut base_context, name.to_owned(), captured_variable);
-                }
-
                 let value = Value::Function(Rc::new(Closure {
                     parameters: definition.parameters.clone(),
                     body: definition.body.clone(),
-                    base_context,
+                    base_context: context
+                        .capture(&definition.captured)
+                        .ok_or(EvaluationError)?,
                     locals: definition.locals.clone(),
                 }));
 
-                evaluation::assign(context, definition.name.clone(), value);
+                context.set(definition.name.clone(), value);
 
                 Ok(EndReason::End)
             }
@@ -176,7 +172,7 @@ impl Block {
 impl AssignmentTarget {
     fn assign(&self, context: &mut Context, value: Value) -> Result<(), EvaluationError> {
         match (self, value) {
-            (Self::Single(name), value) => evaluation::assign(context, name.clone(), value),
+            (Self::Single(name), value) => context.set(name.clone(), value),
             (Self::Multiple(targets), Value::Tuple(values)) if targets.len() == values.len() => {
                 for (name, value) in targets.iter().zip(values) {
                     name.assign(context, value)?;
@@ -395,8 +391,8 @@ pub fn module(input: ParseInput<'_>) -> ParseResult<'_, (Context, Block)> {
 
     // start everything off as a local and error at runtime
     let mut context = Context::new();
-    for (variable, _) in variables {
-        evaluation::declare(&mut context, variable);
+    for (identifier, _) in variables {
+        context.declare(identifier);
     }
 
     Ok(((context, Block(body, None)), input))

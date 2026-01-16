@@ -30,8 +30,8 @@ f()
 
         println!("{context:?}\n{x:?}");
         assert!(x.evaluate(&mut context).is_ok());
-        assert_eq!(Value::Number(5.), context.get("x").unwrap().take().unwrap());
-        assert_eq!(Value::Number(6.), context.get("y").unwrap().take().unwrap());
+        assert_eq!(Value::Number(5.), context.get("x").unwrap());
+        assert_eq!(Value::Number(6.), context.get("y").unwrap());
     }
 
     #[test]
@@ -56,7 +56,7 @@ f()
 
         println!("{context:?}\n{x:?}");
         assert!(x.evaluate(&mut context).is_ok());
-        assert_eq!(Value::Number(5.), context.get("x").unwrap().take().unwrap());
+        assert_eq!(Value::Number(5.), context.get("x").unwrap());
     }
 
     #[test]
@@ -84,15 +84,9 @@ f()
 
         println!("{context:?}\n{x:?}");
         assert!(x.evaluate(&mut context).is_ok());
-        assert_eq!(Value::Number(5.), context.get("a").unwrap().take().unwrap());
-        assert_eq!(
-            Value::Number(123.),
-            context.get("b").unwrap().take().unwrap()
-        );
-        assert_eq!(
-            Value::Number(123.),
-            context.get("x").unwrap().take().unwrap()
-        );
+        assert_eq!(Value::Number(5.), context.get("a").unwrap());
+        assert_eq!(Value::Number(123.), context.get("b").unwrap());
+        assert_eq!(Value::Number(123.), context.get("x").unwrap());
     }
 
     #[test]
@@ -121,14 +115,8 @@ f()
 
         println!("{context:?}\n{x:?}");
         assert!(x.evaluate(&mut context).is_ok());
-        assert_eq!(Value::Number(5.), context.get("a").unwrap().take().unwrap());
-        assert_eq!(
-            Value::Number(123.),
-            context.get("b").unwrap().take().unwrap()
-        );
-        assert_eq!(
-            Value::Number(123.),
-            context.get("x").unwrap().take().unwrap()
-        );
+        assert_eq!(Value::Number(5.), context.get("a").unwrap());
+        assert_eq!(Value::Number(123.), context.get("b").unwrap());
+        assert_eq!(Value::Number(123.), context.get("x").unwrap());
     }
 }

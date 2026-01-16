@@ -262,15 +262,9 @@ c = 2 < 1
 
             println!("{context:?}");
 
-            assert_eq!(Value::Bool(true), context.get("a").unwrap().take().unwrap());
-            assert_eq!(
-                Value::Bool(false),
-                context.get("b").unwrap().take().unwrap()
-            );
-            assert_eq!(
-                Value::Bool(false),
-                context.get("c").unwrap().take().unwrap()
-            );
+            assert_eq!(Value::Bool(true), context.get("a").unwrap());
+            assert_eq!(Value::Bool(false), context.get("b").unwrap());
+            assert_eq!(Value::Bool(false), context.get("c").unwrap());
         }
 
         #[test]
@@ -308,34 +302,19 @@ m = nan == nan
             println!("{context:?}\n{x:?}");
 
             assert!(x.evaluate(&mut context).is_ok());
-            assert_eq!(Value::Bool(true), context.get("a").unwrap().take().unwrap());
-            assert_eq!(Value::Bool(true), context.get("b").unwrap().take().unwrap());
-            assert_eq!(
-                Value::Bool(false),
-                context.get("c").unwrap().take().unwrap()
-            );
-            assert_eq!(Value::Bool(true), context.get("d").unwrap().take().unwrap());
-            assert_eq!(Value::Bool(true), context.get("e").unwrap().take().unwrap());
-            assert_eq!(Value::Bool(true), context.get("f").unwrap().take().unwrap());
-            assert_eq!(
-                Value::Bool(false),
-                context.get("g").unwrap().take().unwrap()
-            );
-            assert_eq!(Value::Bool(true), context.get("h").unwrap().take().unwrap());
-            assert_eq!(
-                Value::Bool(false),
-                context.get("i").unwrap().take().unwrap()
-            );
-            assert_eq!(Value::Bool(true), context.get("j").unwrap().take().unwrap());
-            assert_eq!(
-                Value::Bool(false),
-                context.get("k").unwrap().take().unwrap()
-            );
-            assert_eq!(Value::Bool(true), context.get("l").unwrap().take().unwrap());
-            assert_eq!(
-                Value::Bool(false),
-                context.get("m").unwrap().take().unwrap()
-            );
+            assert_eq!(Value::Bool(true), context.get("a").unwrap());
+            assert_eq!(Value::Bool(true), context.get("b").unwrap());
+            assert_eq!(Value::Bool(false), context.get("c").unwrap());
+            assert_eq!(Value::Bool(true), context.get("d").unwrap());
+            assert_eq!(Value::Bool(true), context.get("e").unwrap());
+            assert_eq!(Value::Bool(true), context.get("f").unwrap());
+            assert_eq!(Value::Bool(false), context.get("g").unwrap());
+            assert_eq!(Value::Bool(true), context.get("h").unwrap());
+            assert_eq!(Value::Bool(false), context.get("i").unwrap());
+            assert_eq!(Value::Bool(true), context.get("j").unwrap());
+            assert_eq!(Value::Bool(false), context.get("k").unwrap());
+            assert_eq!(Value::Bool(true), context.get("l").unwrap());
+            assert_eq!(Value::Bool(false), context.get("m").unwrap());
         }
 
         #[test]
@@ -373,43 +352,19 @@ m = nan != nan
             println!("{context:?}\n{x:?}");
 
             assert!(x.evaluate(&mut context).is_ok());
-            assert_eq!(
-                Value::Bool(false),
-                context.get("a").unwrap().take().unwrap()
-            );
-            assert_eq!(
-                Value::Bool(false),
-                context.get("b").unwrap().take().unwrap()
-            );
-            assert_eq!(Value::Bool(true), context.get("c").unwrap().take().unwrap());
-            assert_eq!(
-                Value::Bool(false),
-                context.get("d").unwrap().take().unwrap()
-            );
-            assert_eq!(
-                Value::Bool(false),
-                context.get("e").unwrap().take().unwrap()
-            );
-            assert_eq!(
-                Value::Bool(false),
-                context.get("f").unwrap().take().unwrap()
-            );
-            assert_eq!(Value::Bool(true), context.get("g").unwrap().take().unwrap());
-            assert_eq!(
-                Value::Bool(false),
-                context.get("h").unwrap().take().unwrap()
-            );
-            assert_eq!(Value::Bool(true), context.get("i").unwrap().take().unwrap());
-            assert_eq!(
-                Value::Bool(false),
-                context.get("j").unwrap().take().unwrap()
-            );
-            assert_eq!(Value::Bool(true), context.get("k").unwrap().take().unwrap());
-            assert_eq!(
-                Value::Bool(false),
-                context.get("l").unwrap().take().unwrap()
-            );
-            assert_eq!(Value::Bool(true), context.get("m").unwrap().take().unwrap());
+            assert_eq!(Value::Bool(false), context.get("a").unwrap());
+            assert_eq!(Value::Bool(false), context.get("b").unwrap());
+            assert_eq!(Value::Bool(true), context.get("c").unwrap());
+            assert_eq!(Value::Bool(false), context.get("d").unwrap());
+            assert_eq!(Value::Bool(false), context.get("e").unwrap());
+            assert_eq!(Value::Bool(false), context.get("f").unwrap());
+            assert_eq!(Value::Bool(true), context.get("g").unwrap());
+            assert_eq!(Value::Bool(false), context.get("h").unwrap());
+            assert_eq!(Value::Bool(true), context.get("i").unwrap());
+            assert_eq!(Value::Bool(false), context.get("j").unwrap());
+            assert_eq!(Value::Bool(true), context.get("k").unwrap());
+            assert_eq!(Value::Bool(false), context.get("l").unwrap());
+            assert_eq!(Value::Bool(true), context.get("m").unwrap());
         }
 
         #[test]
@@ -417,12 +372,12 @@ m = nan != nan
             let ((mut context, x), _) = statement::module("a = 11 % 3".into()).unwrap();
             println!("{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
-            assert_eq!(Value::Number(2.), context.get("a").unwrap().take().unwrap());
+            assert_eq!(Value::Number(2.), context.get("a").unwrap());
 
             let ((mut context, x), _) = statement::module("a = -11 % 3".into()).unwrap();
             println!("{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
-            assert_eq!(Value::Number(1.), context.get("a").unwrap().take().unwrap());
+            assert_eq!(Value::Number(1.), context.get("a").unwrap());
         }
 
         #[test]
@@ -430,15 +385,12 @@ m = nan != nan
             let ((mut context, x), _) = statement::module("a = 11 // 3".into()).unwrap();
             println!("{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
-            assert_eq!(Value::Number(3.), context.get("a").unwrap().take().unwrap());
+            assert_eq!(Value::Number(3.), context.get("a").unwrap());
 
             let ((mut context, x), _) = statement::module("a = -11 // 3".into()).unwrap();
             println!("{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
-            assert_eq!(
-                Value::Number(-4.),
-                context.get("a").unwrap().take().unwrap()
-            );
+            assert_eq!(Value::Number(-4.), context.get("a").unwrap());
         }
 
         #[test]
@@ -449,7 +401,7 @@ m = nan != nan
             assert!(x.evaluate(&mut context).is_ok());
             assert_eq!(
                 Value::Number(-0.991_479_137_495_678_1),
-                context.get("a").unwrap().take().unwrap()
+                context.get("a").unwrap()
             );
         }
 
@@ -499,11 +451,8 @@ b = +False
             .unwrap();
             println!("{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
-            assert_eq!(Value::Bool(true), context.get("a").unwrap().take().unwrap());
-            assert_eq!(
-                Value::Bool(false),
-                context.get("b").unwrap().take().unwrap()
-            );
+            assert_eq!(Value::Bool(true), context.get("a").unwrap());
+            assert_eq!(Value::Bool(false), context.get("b").unwrap());
         }
 
         #[test]
@@ -518,14 +467,8 @@ b = -False
             .unwrap();
             println!("{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
-            assert_eq!(
-                Value::Number(-1.),
-                context.get("a").unwrap().take().unwrap()
-            );
-            assert_eq!(
-                Value::Number(-0.),
-                context.get("b").unwrap().take().unwrap()
-            );
+            assert_eq!(Value::Number(-1.), context.get("a").unwrap());
+            assert_eq!(Value::Number(-0.), context.get("b").unwrap());
         }
 
         #[test]
@@ -535,10 +478,7 @@ b = -False
             println!("{context:?}\n{x:?}");
 
             assert!(x.evaluate(&mut context).is_ok());
-            assert_eq!(
-                Value::Number(5.75),
-                context.get("k").unwrap().take().unwrap()
-            );
+            assert_eq!(Value::Number(5.75), context.get("k").unwrap());
         }
 
         #[test]
@@ -548,10 +488,7 @@ b = -False
             println!("{context:?}\n{x:?}");
 
             assert!(x.evaluate(&mut context).is_ok());
-            assert_eq!(
-                Value::Number(0.75),
-                context.get("k").unwrap().take().unwrap()
-            );
+            assert_eq!(Value::Number(0.75), context.get("k").unwrap());
         }
 
         #[test]
@@ -561,10 +498,7 @@ b = -False
             println!("{context:?}\n{x:?}");
 
             assert!(x.evaluate(&mut context).is_ok());
-            assert_eq!(
-                Value::Number(-5.75),
-                context.get("k").unwrap().take().unwrap()
-            );
+            assert_eq!(Value::Number(-5.75), context.get("k").unwrap());
         }
 
         #[test]
@@ -574,10 +508,7 @@ b = -False
             println!("{context:?}\n{x:?}");
 
             assert!(x.evaluate(&mut context).is_ok());
-            assert_eq!(
-                Value::Number(-0.75),
-                context.get("k").unwrap().take().unwrap()
-            );
+            assert_eq!(Value::Number(-0.75), context.get("k").unwrap());
         }
 
         #[test]
@@ -629,10 +560,7 @@ _ = x()
 
             println!("{context:?}");
 
-            assert_eq!(
-                Value::Number(-15.5),
-                context.get("k").unwrap().take().unwrap()
-            );
+            assert_eq!(Value::Number(-15.5), context.get("k").unwrap());
         }
 
         #[test]
@@ -647,7 +575,7 @@ _ = x()
 
             println!("{context:?}");
 
-            assert_eq!(Value::Number(4.), context.get("x").unwrap().take().unwrap());
+            assert_eq!(Value::Number(4.), context.get("x").unwrap());
         }
     }
 
@@ -701,10 +629,7 @@ mod tuple {
 
             println!("{context:?}");
 
-            assert_eq!(
-                Value::Tuple(Vec::new()),
-                context.get("x").unwrap().take().unwrap()
-            );
+            assert_eq!(Value::Tuple(Vec::new()), context.get("x").unwrap());
         }
 
         #[test]
@@ -719,7 +644,7 @@ mod tuple {
 
             assert_eq!(
                 Value::Tuple(vec![Value::Number(1.)]),
-                context.get("x").unwrap().take().unwrap()
+                context.get("x").unwrap()
             );
         }
 
@@ -735,7 +660,7 @@ mod tuple {
 
             assert_eq!(
                 Value::Tuple(vec![Value::Number(1.)]),
-                context.get("x").unwrap().take().unwrap()
+                context.get("x").unwrap()
             );
         }
 
@@ -751,7 +676,7 @@ mod tuple {
 
             assert_eq!(
                 Value::Tuple(vec![Value::Number(1.), Value::Number(2.)]),
-                context.get("x").unwrap().take().unwrap()
+                context.get("x").unwrap()
             );
         }
 
@@ -767,7 +692,7 @@ mod tuple {
 
             assert_eq!(
                 Value::Tuple(vec![Value::Number(1.), Value::Number(2.)]),
-                context.get("x").unwrap().take().unwrap()
+                context.get("x").unwrap()
             );
         }
 
@@ -783,7 +708,7 @@ mod tuple {
 
             assert_eq!(
                 Value::Tuple(vec![Value::Number(1.), Value::Number(2.)]),
-                context.get("x").unwrap().take().unwrap()
+                context.get("x").unwrap()
             );
         }
 
@@ -799,7 +724,7 @@ mod tuple {
 
             assert_eq!(
                 Value::Tuple(vec![Value::Number(1.), Value::Number(2.)]),
-                context.get("x").unwrap().take().unwrap()
+                context.get("x").unwrap()
             );
         }
     }
@@ -823,7 +748,7 @@ mod tuple {
 
             assert_ne!(
                 Value::Tuple(vec![Value::Number(1.)]),
-                context.get("x").unwrap().take().unwrap()
+                context.get("x").unwrap()
             );
         }
 
@@ -843,7 +768,7 @@ mod tuple {
 
             assert_ne!(
                 Value::Tuple(vec![Value::Number(1.)]),
-                context.get("x").unwrap().take().unwrap()
+                context.get("x").unwrap()
             );
         }
     }

@@ -1,8 +1,8 @@
-use crate::evaluation;
+use crate::context;
 use crate::parsing;
 use crate::statement::EndReason;
 use crate::value;
-use evaluation::{Context, EvaluationError};
+use context::{Context, EvaluationError};
 use parsing::{ParseInput, ParseResult, Parser};
 use value::Value;
 
@@ -72,10 +72,7 @@ impl Expression {
         match self {
             Self::Literal(v) => Ok(v.clone()),
             Self::Operation(op) => op.evaluate(context),
-            Self::Identifier(n) => context.get(n).map_or_else(
-                || Err(EvaluationError),
-                |v| v.borrow().clone().ok_or(EvaluationError),
-            ),
+            Self::Identifier(n) => context.get(n).ok_or(EvaluationError),
             Self::Call(call) => call.evaluate(context),
             Self::Tuple(elements) => Ok(Value::Tuple(
                 elements
@@ -154,11 +151,11 @@ impl Call {
 
         let mut new_context = f.base_context.clone();
         for identifier in &f.locals {
-            evaluation::declare(&mut new_context, identifier.clone());
+            new_context.declare(identifier.clone());
         }
 
         for (name, arg) in f.parameters.iter().cloned().zip(args) {
-            evaluation::assign(&mut new_context, name, arg.evaluate(context)?);
+            new_context.set(name, arg.evaluate(context)?);
         }
 
         f.body.evaluate(&mut new_context).map(|x| {

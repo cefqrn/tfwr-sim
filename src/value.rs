@@ -1,4 +1,4 @@
-use crate::evaluation::{Context, EvaluationError};
+use crate::context::{Context, EvaluationError};
 use crate::parsing;
 use crate::statement::Block;
 use parsing::{ParseError, ParseInput, ParseResult, Parser, Predicate};
