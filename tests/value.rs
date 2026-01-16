@@ -1,6 +1,5 @@
 use tfwr_sim::parsing::Parser;
-use tfwr_sim::value;
-use value::Value;
+use tfwr_sim::value::Value;
 
 mod number {
     use super::*;
@@ -10,7 +9,7 @@ mod number {
 
         #[test]
         fn zero() {
-            match value::parse.try_parse("0".into()) {
+            match Value::parse.try_parse("0".into()) {
                 Ok((Value::Number(0.), _)) => {}
                 _ => panic!(),
             }
@@ -18,7 +17,7 @@ mod number {
 
         #[test]
         fn nonzero_whole() {
-            match value::parse.try_parse("1234".into()) {
+            match Value::parse.try_parse("1234".into()) {
                 Ok((Value::Number(1234.), _)) => {}
                 _ => panic!(),
             }
@@ -26,7 +25,7 @@ mod number {
 
         #[test]
         fn zero_with_fractional() {
-            match value::parse.try_parse("0.25".into()) {
+            match Value::parse.try_parse("0.25".into()) {
                 Ok((Value::Number(0.25), _)) => {}
                 _ => panic!(),
             }
@@ -34,7 +33,7 @@ mod number {
 
         #[test]
         fn nonzero_with_fractional() {
-            match value::parse.try_parse("12.25".into()) {
+            match Value::parse.try_parse("12.25".into()) {
                 Ok((Value::Number(12.25), _)) => {}
                 _ => panic!(),
             }
@@ -42,7 +41,7 @@ mod number {
 
         #[test]
         fn fractional_without_whole() {
-            match value::parse.try_parse(".25".into()) {
+            match Value::parse.try_parse(".25".into()) {
                 Ok((Value::Number(0.25), _)) => {}
                 _ => panic!(),
             }
@@ -54,7 +53,7 @@ mod number {
 
         #[test]
         fn single_dot() {
-            if let Ok((Value::Number(_), _)) = value::parse.try_parse(".".into()) {
+            if let Ok((Value::Number(_), _)) = Value::parse.try_parse(".".into()) {
                 panic!()
             }
         }
@@ -62,7 +61,7 @@ mod number {
         #[test]
         fn whole_with_dot() {
             // doesn't include the dot in the number
-            match value::parse.followed_by('.').try_parse("5.".into()) {
+            match Value::parse.followed_by('.').try_parse("5.".into()) {
                 Ok((Value::Number(5.), _)) => {}
                 _ => panic!(),
             }

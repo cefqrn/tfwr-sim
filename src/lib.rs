@@ -5,4 +5,6 @@ pub mod expression;
 pub mod statement;
 pub mod value;
 
+pub mod module;
+
 mod variable;

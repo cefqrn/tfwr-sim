@@ -1,5 +1,5 @@
+use tfwr_sim::module;
 use tfwr_sim::parsing::Parser;
-use tfwr_sim::statement;
 use tfwr_sim::value::Value;
 
 mod nested_capture_modification {
@@ -7,7 +7,7 @@ mod nested_capture_modification {
 
     #[test]
     fn with_later_local_assignment_without_global_is_local() {
-        let ((mut context, x), _) = statement::module
+        let ((mut context, x), _) = module::parse
             .try_parse(
                 "
 x = 5
@@ -36,7 +36,7 @@ f()
 
     #[test]
     fn with_local_assignment_with_global_is_local() {
-        let ((mut context, x), _) = statement::module
+        let ((mut context, x), _) = module::parse
             .try_parse(
                 "
 x = 5
@@ -61,7 +61,7 @@ f()
 
     #[test]
     fn without_local_assignment_without_global_is_not_local() {
-        let ((mut context, x), _) = statement::module
+        let ((mut context, x), _) = module::parse
             .try_parse(
                 "
 x = 5
@@ -91,7 +91,7 @@ f()
 
     #[test]
     fn without_local_assignment_with_global_is_not_local() {
-        let ((mut context, x), _) = statement::module
+        let ((mut context, x), _) = module::parse
             .try_parse(
                 "
 x = 5

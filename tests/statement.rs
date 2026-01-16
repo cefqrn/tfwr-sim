@@ -1,5 +1,5 @@
+use tfwr_sim::module;
 use tfwr_sim::parsing::Parser;
-use tfwr_sim::statement;
 use tfwr_sim::value::Value;
 
 mod statement_ {
@@ -10,7 +10,7 @@ mod statement_ {
 
         #[test]
         fn empty_lines_and_comments() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 a = 5
@@ -36,7 +36,7 @@ d = a * -b + c
 
         #[test]
         fn nested_ifs() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 if 999:
@@ -75,7 +75,7 @@ if 0:
 
         #[test]
         fn elifs_and_else() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 if True:
@@ -130,7 +130,7 @@ else:
 
         #[test]
         fn def_without_args() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 def f():
@@ -149,7 +149,7 @@ n = 5
 
         #[test]
         fn def_with_args() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 def f(a, b):
@@ -168,7 +168,7 @@ n = 5
 
         #[test]
         fn assignment() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 x = 5
@@ -184,7 +184,7 @@ x = 5
 
         #[test]
         fn reassignment() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 x = 5
@@ -201,7 +201,7 @@ x = 6
 
         #[test]
         fn reassignment_by_def() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 x = 5
@@ -219,7 +219,7 @@ def x():
 
         #[test]
         fn reassignment_with_expression_including_the_assigned_var() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 x = 5
@@ -236,7 +236,7 @@ x = x + 1
 
         #[test]
         fn global_without_call() {
-            let ((context, x), _) = statement::module
+            let ((context, x), _) = module::parse
                 .try_parse(
                     "
 def f():
@@ -251,7 +251,7 @@ def f():
 
         #[test]
         fn global_with_call() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 def f():
@@ -272,7 +272,7 @@ _ = f()
 
         #[test]
         fn global_with_recursive_call_without_parameters() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 def f():
@@ -301,7 +301,7 @@ _ = f()
 
         #[test]
         fn global_with_recursive_call_with_parameters() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 def f(a, b):
@@ -325,7 +325,7 @@ _ = f(0, 1)
 
         #[test]
         fn global_in_non_definition_nested_block() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 def f():
@@ -352,7 +352,7 @@ _ = f()
 
         #[test]
         fn or_short_circuits() {
-            let ((mut context, x), _) = statement::module(
+            let ((mut context, x), _) = module::parse(
                 "
 def f(x):
     global side_effect
@@ -376,7 +376,7 @@ k = 5 or f(6)
 
         #[test]
         fn and_short_circuits() {
-            let ((mut context, x), _) = statement::module(
+            let ((mut context, x), _) = module::parse(
                 "
 def f(x):
     global side_effect
@@ -400,7 +400,7 @@ k = 0 and f(6)
 
         #[test]
         fn while_loop() {
-            let ((mut context, x), _) = statement::module(
+            let ((mut context, x), _) = module::parse(
                 "
 a = 0
 b = 1
@@ -425,7 +425,7 @@ while b < 1000:
 
         #[test]
         fn return_with_parameters_and_recursion() {
-            let ((mut context, x), _) = statement::module(
+            let ((mut context, x), _) = module::parse(
                 "
 def f(a, b):
     if b >= 1000:
@@ -447,7 +447,7 @@ result = f(0, 1)
 
         #[test]
         fn unit_assignment() {
-            let ((mut context, x), _) = statement::module.try_parse("() = ()".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("() = ()".into()).unwrap();
 
             println!("{context:?}\n{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
@@ -455,7 +455,7 @@ result = f(0, 1)
 
         #[test]
         fn unenclosed_1_tuple_assignment() {
-            let ((mut context, x), _) = statement::module.try_parse("x, = 1,".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("x, = 1,".into()).unwrap();
 
             println!("{context:?}\n{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
@@ -464,7 +464,7 @@ result = f(0, 1)
 
         #[test]
         fn unenclosed_2_tuple_assignment() {
-            let ((mut context, x), _) = statement::module.try_parse("x, y = 1, 2".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("x, y = 1, 2".into()).unwrap();
 
             println!("{context:?}\n{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
@@ -474,7 +474,7 @@ result = f(0, 1)
 
         #[test]
         fn enclosed_1_tuple_assignment() {
-            let ((mut context, x), _) = statement::module.try_parse("(x,) = 1,".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("(x,) = 1,".into()).unwrap();
 
             println!("{context:?}\n{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
@@ -483,8 +483,7 @@ result = f(0, 1)
 
         #[test]
         fn enclosed_2_tuple_assignment() {
-            let ((mut context, x), _) =
-                statement::module.try_parse("(x, y) = 1, 2".into()).unwrap();
+            let ((mut context, x), _) = module::parse.try_parse("(x, y) = 1, 2".into()).unwrap();
 
             println!("{context:?}\n{x:?}");
             assert!(x.evaluate(&mut context).is_ok());
@@ -494,7 +493,7 @@ result = f(0, 1)
 
         #[test]
         fn tuple_stack() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 x = 1, (2, (3, (4, None)))
@@ -512,7 +511,7 @@ while x:
 
         #[test]
         fn nested_destructuring() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 z = (3, 4), (5, 6)
@@ -534,7 +533,7 @@ z = (3, 4), (5, 6)
 
         #[test]
         fn for_loop() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 def f():
@@ -565,7 +564,7 @@ for fn in f, g, h:
 
         #[test]
         fn bare_call() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 def f():
@@ -585,7 +584,7 @@ f()
 
         #[test]
         fn returning_functions() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 a = 0
@@ -628,7 +627,7 @@ f()()()
 
         #[test]
         fn passing_functions_as_args() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 def map(f, s):
@@ -670,7 +669,7 @@ s = map(partial2_1(add, 5), s)
 
         #[test]
         fn nested_closures() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 def f(x):
@@ -695,7 +694,7 @@ y = f(1)()()()
 
         #[test]
         fn function_body_using_capture_defined_later() {
-            let ((mut context, x), _) = statement::module
+            let ((mut context, x), _) = module::parse
                 .try_parse(
                     "
 def f():
@@ -721,12 +720,12 @@ result = f()
 
         #[test]
         fn multiple_statements_on_the_same_line() {
-            assert!(statement::module.try_parse("x = 1 y = 2".into()).is_err());
+            assert!(module::parse.try_parse("x = 1 y = 2".into()).is_err());
         }
 
         #[test]
         fn assigning_to_keyword() {
-            assert!(statement::module.try_parse("None = 5".into()).is_err());
+            assert!(module::parse.try_parse("None = 5".into()).is_err());
         }
     }
 }
